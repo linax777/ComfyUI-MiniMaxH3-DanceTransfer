@@ -1,5 +1,9 @@
 # ComfyUI MiniMax H3 Timeline Director
 
+Start with the [**MiniMaxH3 All-in-One Full Timeline Director workflow**](example_workflows/MiniMaxH3全功能合一完全体导演台工作流.json):
+one lightweight graph covers text-to-video, image reference, audio-driven generation, video editing,
+character replacement, motion transfer, digital humans, and manually segmented long-video generation.
+
 [简体中文](README_CN.md) · English
 
 ## Headline feature: lightweight unlimited-length video generation
@@ -10,11 +14,11 @@ AV-latent tail, adaptive Drift-Control video masking, Soft AV audio continuity, 
 the segment count—without generic Loop nodes or duplicated sampler chains. Practical length is limited
 only by local VRAM, RAM, disk space, and ComfyUI execution limits.
 
-[Download unlimited-length workflow](example_workflows/MiniMax时间线插件内置有限分段工作流.json) ·
+[Download the all-in-one workflow](example_workflows/MiniMaxH3全功能合一完全体导演台工作流.json) ·
 [Chinese guide](docs/FINITE_SEGMENT_EXPANSION_CN.md) ·
 [Chinese prompt specification](docs/MiniMax_H3_循环分段提示词_Agent规范.md)
 
-[![Lightweight unlimited-length workflow](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector/releases/download/v0.6.0/infinite-workflow.webp)](example_workflows/MiniMax时间线插件内置有限分段工作流.json)
+[![Lightweight unlimited-length workflow](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector/releases/download/v0.6.0/infinite-workflow.webp)](example_workflows/MiniMaxH3全功能合一完全体导演台工作流.json)
 
 ### Two directly generated, approximately one-minute examples
 
@@ -46,27 +50,26 @@ An editable reference-media timeline for ComfyUI's native **MiniMax H3 Reference
 - Multi-clip timeline with move, trim, split, delete, snapping, and numeric positioning.
 - Only media intersecting the cyan generation range participates in the current reference or Guide plan.
 - Three per-clip modes: `Fixed Guide`, `Editable Reference`, and `Boundary Only`.
-- Native text-to-video when no image, video, or audio material is uploaded; the encoder creates the standard empty H3 AV latent from the prompt alone.
+- Native text-to-video: with no uploaded media and no segment windows, Finite Segment Sampling internally creates a standard empty H3 AV latent from the Global Prompt and current GEN duration. Manual windows extend the same path to long-form T2V.
 - Bound source audio follows video edits and can be disabled independently.
 - Silent low-resolution monitoring proxies up to `480×270 / 12fps`.
 - Multi-select, external file drop, deletion, and drag reordering for image/audio bins.
 - Stable `<Picture N>`, `<Video N>`, and `<Audio N>` ordering from UI to H3 inputs.
-- Automatic long-reference segmentation for character replacement and lip-sync with one shared prompt.
+- Global and per-segment prompts: the global prompt is reused only when all segment prompts are empty; entering any segment prompt requires completing every segment and disables the global prompt.
 - Decode-time resizing to the node's `width × height` for VRAM protection.
 - Separate merged outputs for timeline soundtracks and standalone reference audio.
 - Timeline state is serialized into the ComfyUI workflow JSON.
 
-## Included nodes
+## Main long-video workflow nodes
 
 | Node | Purpose |
 | --- | --- |
 | **MiniMax H3 Material Planner** | Edits media and outputs a compact H3 plan plus an ordered Omni media bundle. |
 | **MiniMax H3 Omni Media-Bundle Prompt Bridge** | Sends the bundle to an installed Prompt Rewriter Omni backend and returns only `rewritten_prompt`. |
-| **MiniMax H3 Plan Encoder** | Combines the plan, prompt, CLIP, and VAEs into H3 conditioning and latent outputs. |
-| **MiniMax H3 Finite Segment Expansion** | Creates a lightweight long-video plan from prompt/material ordinals without sampling. |
-| **MiniMax H3 Long Reference Auto Segmentation** | Uses the Material Planner duration to slice one long video and synchronized audio while preserving the selected video purpose and reusing one prompt. |
 | **MiniMax H3 Finite Segment Sampling** | Expands an acyclic graph for direct-latent continuation, masking, sampling, deduplication, and assembly. |
 | **MiniMax H3 Timeline Director (Compatibility)** | Preserves the original all-in-one workflow and older saved workflows. |
+
+Long-video generation needs only **Material Planner Segment Plan → Finite Segment Sampling**. The Plan Encoder remains registered as a hidden internal node for expanded execution graphs and old workflow compatibility.
 
 The split architecture avoids a ComfyUI dependency cycle:
 
@@ -99,67 +102,34 @@ No extra pip dependency is declared. The plugin uses PyAV, Pillow, NumPy, PyTorc
 
 ## Example workflows
 
-### 1. Basic timeline workflow
+Only the following two examples are shipped. The first is the normal generation entry point; the second adds Omni prompt expansion.
 
-Uses the compatibility **MiniMax H3 Timeline Director** for direct timeline editing and H3 encoding.
+### 1. All-in-One Full Timeline Director (recommended)
 
-[Download workflow](example_workflows/MiniMax_H3基础时间线规划工作流.json)
+[Download workflow](example_workflows/MiniMaxH3全功能合一完全体导演台工作流.json)
 
-![Basic timeline workflow](docs/images/workflow-basic.webp)
+This is the **all-task, lightweight, no-rewiring** workflow. Configure only the Material Planner's media, time windows, and prompts to run:
 
-### 2. Split planner and encoder
+- Text-to-video with no media, as one segment.
+- Long-form text-to-video with no media and multiple segments.
+- Single-segment image-reference generation.
+- Multi-segment image-reference generation.
+- Single-segment image-and-audio reference generation.
+- Multi-segment image-and-audio generation and digital-human lip sync.
+- Single-segment editable-video reference, character replacement, and motion transfer.
+- Manually segmented long-video reference generation, character replacement, motion transfer, and final AV assembly.
 
-Uses **Material Planner + Plan Encoder** to separate media preparation from H3 encoding.
+Connect the Material Planner's **Segment Plan** directly to **MiniMax H3 Finite Segment Sampling**. With no uploaded media it creates an empty AV latent; with references it encodes each segment's assigned media. Drag GEN windows to define duration and seam overlap, reuse one Global Prompt, or enter complete per-segment prompts. The plugin handles legal-frame alignment, Drift-Control, Soft AV, overlap removal, tail trimming, and final assembly.
 
-[Download workflow](example_workflows/MiniMax_H3时间线规划拆分节点工作流.json)
+> The plugin does not auto-segment by reference-media duration or infer whether character identity should continue. Segment ranges, overlaps, and assignments are explicitly controlled on the timeline. For character replacement, use **Editable Reference** in most cases.
 
-![Split planner and encoder workflow](docs/images/workflow-split.webp)
-
-### 3. Timeline planning with prompt expansion
-
-Adds **MiniMax-H3 Prompt Rewriter Omni (sees and hears)** so the same ordered media can be inspected while producing an H3 prompt.
+### 2. Timeline planning with Prompt generation
 
 [Download workflow](example_workflows/MiniMax_H3时间规划+Prompt提示词生成.json)
 
-![Timeline planning and prompt expansion workflow](docs/images/workflow-prompt.webp)
+This variant adds the **MiniMax H3 Omni Media-Bundle Prompt Bridge**, allowing Prompt Rewriter Omni to inspect ordered images, videos, and audio before expanding an H3 prompt. Use it when multimodal material understanding should precede H3 generation.
 
-> This workflow requires [MiniMax-H3-Prompt-Rewriter-ComfyUI](https://github.com/pytraveler/MiniMax-H3-Prompt-Rewriter-ComfyUI). Follow that project's instructions for model, quantization, and VRAM requirements.
-
-### 4. Plugin-owned unlimited-length video generation
-
-**MiniMax H3 Finite Segment Expansion** only validates prompts, segment count, and media
-assignments; it performs no sampling. Connect its plan to **MiniMax H3 Finite Segment Sampling**
-to build a standard acyclic graph for direct AV-latent continuation with adaptive Drift-Control video masking and Soft AV audio continuity,
-overlap removal, and ordered assembly. Every segment uses the same seed. No generic Loop nodes are required.
-
-[Download finite workflow](example_workflows/MiniMax时间线插件内置有限分段工作流.json) ·
-[Chinese guide](docs/FINITE_SEGMENT_EXPANSION_CN.md) ·
-[Chinese prompt specification](docs/MiniMax_H3_循环分段提示词_Agent规范.md)
-
-### Long-video character replacement and lip sync
-
-Place one complete long video in the Material Planner, or use identity pictures plus a standalone
-long driving-audio track without video. Connect the plan and one shared prompt to **MiniMax H3 Long Reference
-Auto Segmentation**, then connect its output directly to **Finite Segment Sampling**. Finite Segment
-Expansion and manually repeated prompts are not required.
-
-The node does not use the cyan single-run selection as its total range. An image-plus-audio plan follows
-the longest standalone audio. When video and standalone audio coexist, the longer available duration sets
-the total range, and the shorter medium stops participating after it ends instead of being looped or frozen.
-At most one timeline video is accepted. Each segment inherits its generation duration from the Material Planner. Every video window
-preserves the source video's selected **Fixed Guide**, **Editable Reference**, or **Boundary Only** purpose.
-Use Editable Reference for character replacement; Fixed Guide intentionally anchors the original frames
-and will usually prevent replacement. Images retain their order in every segment. With **Slice Standalone
-Audio** enabled, long audio follows the same source offsets and overlaps for lip sync; when disabled,
-the full audio is reused in every segment as a short timbre reference.
-
-For example, a 60-second source with an approximately 10-second segment duration and a requested
-48-frame overlap becomes seven segments with H3's aligned 39-frame overlap. After assembly, any final
-H3-grid padding is trimmed back to the exact 1440-frame source duration. Picture, Video, and Audio
-ordinals restart at one in every segment, so the same prompt can be reused verbatim.
-
-[Long-video motion-transfer / character-replacement / digital-human example](example_workflows/MinimaxH3长视频动作迁移人物替换+长视频数字人工作流.json) ·
-[Chinese long-reference auto-segmentation guide](docs/LONG_REFERENCE_AUTO_SEGMENT_CN.md)
+> This workflow requires [MiniMax-H3-Prompt-Rewriter-ComfyUI](https://github.com/pytraveler/MiniMax-H3-Prompt-Rewriter-ComfyUI). Follow that project for model, quantization, and VRAM requirements.
 
 ## Basic usage
 

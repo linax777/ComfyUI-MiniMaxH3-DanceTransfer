@@ -1,6 +1,11 @@
 {
   "MiniMaxH3TimelineDirector": {
     "timeline": {
+      "globalPrompt":"Global prompt", "globalPromptHint":"Used for the current GEN region and reused by every segment when all segment prompts are empty.", "globalPromptInactive":"Inactive because segment prompt mode is enabled; complete every segment prompt.",
+      "segmentPrompt":"Prompt for this segment", "segmentTiming":"{start}–{end}s · {frames} frames · overlap {overlap} frames",
+      "segmentBoundary":"Touching: independently generated, no previous-segment guidance or frame removal",
+      "segmentTimelineHelp":"H3 frame snapping · Moving/resizing ripples later windows · No gaps",
+      "segmentTabs":"Segment windows and prompts", "segmentPlanHint":"Connect Segment Plan directly to Finite Segment Sampler",
       "brandPlanner": "MiniMax H3 Material Planner", "brandDirector": "MiniMax H3 Timeline Director (Compatibility)",
       "addVideo": "＋ Video", "addImage": "＋ Image", "addAudio": "＋ Audio", "splitAtPlayhead": "✂ Split at Playhead", "deleteClip": "Delete Clip", "ready": "Ready",
       "selectionStart": "Selection start", "referenceDuration": "Reference duration", "zoom": "Zoom", "fitAll": "Fit all", "matchNearestGap": "Match nearest gap", "materialSegments": "Material segments", "updateSegments": "Update segments",

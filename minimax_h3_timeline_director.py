@@ -905,6 +905,9 @@ def _timeline_for_prompt_index(
     result["audios"] = _ordered_segment_assets(
         list(result.get("audios") or []), selected.get("audios")
     )
+    if config.get("mode") == "timeline":
+        start, end = int(selected.get("startFrame", 0)), int(selected.get("endFrame", 5))
+        result["selection"] = {"start": start / FPS, "duration": (end - start) / FPS}
     return result, selected_index, segment_count
 
 
@@ -919,6 +922,8 @@ def _create_timeline_plan(
     )
     target_width, target_height = int(width), int(height)
     seconds = max(MIN_REF_VIDEO_SECONDS, _float(generation_seconds, 5.0))
+    if selected_segment is not None and timeline.get("segmentConfig", {}).get("mode") == "timeline":
+        seconds = timeline["selection"]["duration"]
     selection = timeline.setdefault("selection", {})
     selection["start"] = max(0.0, _float(selection.get("start")))
     # The visible duration widget is authoritative.  Persisting it into the
@@ -1555,6 +1560,7 @@ class MiniMaxH3TimelinePlanner(io.ComfyNode):
             outputs=[
                 TimelinePlan.Output(display_name="Material Plan"),
                 PromptMediaBundle.Output(display_name="Omni Media Bundle"),
+                io.Custom("MINIMAX_H3_FINITE_SEGMENT_PLAN").Output(display_name="Segment Plan"),
             ],
         )
 
@@ -1562,10 +1568,25 @@ class MiniMaxH3TimelinePlanner(io.ComfyNode):
     def execute(
         cls, width, height, generation_seconds, timeline_data="", prompt_index=None
     ) -> io.NodeOutput:
-        plan = _create_timeline_plan(
-            timeline_data, width, height, generation_seconds, prompt_index
+        complete_plan = _create_timeline_plan(
+            timeline_data, width, height, generation_seconds, None
         )
-        return io.NodeOutput(plan, _create_prompt_media_bundle(plan))
+        # The sampler validates prompts only when this output is actually used.
+        # Existing single-segment encoder/Omni workflows remain usable while editing.
+        selected_plan = complete_plan
+        config = complete_plan["timeline"].get("segmentConfig", {})
+        if prompt_index is not None:
+            selected_plan = _create_timeline_plan(
+                timeline_data, width, height, generation_seconds, prompt_index,
+            )
+        elif config.get("mode") == "timeline" and int(config.get("count", 0)) > 0:
+            selected_plan = _create_timeline_plan(
+                timeline_data, width, height, generation_seconds,
+                int(config.get("activeIndex", 0)) + 1,
+            )
+        return io.NodeOutput(
+            selected_plan, _create_prompt_media_bundle(selected_plan), complete_plan
+        )
 
 
 class MiniMaxH3OmniPromptBridge(io.ComfyNode):
@@ -1697,6 +1718,7 @@ class MiniMaxH3TimelineEncoder(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="MiniMaxH3TimelineEncoder",
+            is_dev_only=True,
             display_name="MiniMax H3 Plan Encoder",
             description="Encode a material plan and final H3 prompt into references, native Guides, conditioning, and AV latent.",
             category="model/conditioning/minimax",

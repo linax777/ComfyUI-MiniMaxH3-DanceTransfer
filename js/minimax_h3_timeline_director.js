@@ -1,5 +1,6 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
+import { createWindows, editWindow } from "./segment_windows.mjs";
 
 const TIMELINE_NODE_NAMES = new Set(["MiniMaxH3TimelinePlanner", "MiniMaxH3TimelineDirector"]);
 const STYLE_ID = "m3td-style";
@@ -8,6 +9,12 @@ const UPLOAD_SUBFOLDER = "minimax_h3_timeline_director";
 const DIRECTOR_HEIGHT = 674;
 
 const TIMELINE_EN = {
+  globalPrompt: "Global prompt", globalPromptHint: "Used for the current GEN region and reused by every segment when all segment prompts are empty.",
+  globalPromptInactive: "Inactive because segment prompt mode is enabled; complete every segment prompt.",
+  segmentPrompt: "Prompt for this segment", segmentTiming: "{start}–{end}s · {frames} frames · overlap {overlap} frames",
+  segmentBoundary: "Touching: independently generated, no previous-segment guidance or frame removal",
+  segmentTimelineHelp: "H3 frame snapping · Moving/resizing ripples later windows · No gaps",
+  segmentTabs: "Segment windows and prompts", segmentPlanHint: "Connect Segment Plan directly to Finite Segment Sampler",
   brandPlanner: "MiniMax H3 Material Planner", brandDirector: "MiniMax H3 Timeline Director (Compatibility)",
   addVideo: "＋ Video", addImage: "＋ Image", addAudio: "＋ Audio", splitAtPlayhead: "✂ Split at Playhead", deleteClip: "Delete Clip", ready: "Ready",
   selectionStart: "Selection start", referenceDuration: "Reference duration", zoom: "Zoom", fitAll: "Fit all", matchNearestGap: "Match nearest gap",
@@ -164,6 +171,12 @@ function installStyles() {
     .m3td-preview-name { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#98a5b9; }
     .m3td-preview-note { color:#718096; line-height:1.45; }
     .m3td-assets { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; padding:8px; height:154px; background:#10151d; }
+    .m3td-global-prompt { padding:8px 10px; border-bottom:1px solid var(--line); background:#10151d; }
+    .m3td-global-prompt-head { display:flex; justify-content:space-between; gap:12px; margin-bottom:5px; color:#cbd6e7; }
+    .m3td-global-prompt-head span { color:var(--muted); text-align:right; }
+    .m3td-global-prompt textarea { box-sizing:border-box; width:100%; height:140px; resize:vertical; overflow:auto;
+      color:#dce6f6; background:#0d1219; border:1px solid #394459; padding:8px; }
+    .m3td-global-prompt.inactive textarea { opacity:.58; border-color:#7a5a34; }
     @media (max-width:680px) { .m3td-preview { grid-template-columns:1fr; min-height:260px; } .m3td-preview-screen { height:190px; } }
     .m3td-bin { min-width:0; border:1px solid #2d3545; border-radius:6px; overflow:hidden; background:#151a23; }
     .m3td-bin-title { display:flex; align-items:center; justify-content:space-between; height:27px; padding:0 8px; color:#b9c4d6;
@@ -189,6 +202,13 @@ function installStyles() {
       color:#cbd6e7; }
     .m3td-segment-note { color:#7f8ba0; }
     .m3td-segment-list { display:grid; gap:7px; }
+    .m3td-segment-tabs { display:flex; flex-wrap:wrap; gap:6px; }
+    .m3td-segment-list p { margin:4px 8px; color:var(--muted); }
+    .m3td-prompt-label { display:block; padding:8px; }
+    .m3td-segment-prompt { display:block; box-sizing:border-box; width:100%; height:180px; margin-top:5px;
+      resize:none; overflow:auto; color:#dce6f6; background:#0d1219; border:1px solid #394459; padding:8px; }
+    .m3td-window { background:transparent; }
+    .m3td-window.active { background:#1b9a9420; }
     .m3td-segment { min-width:0; border:1px solid #313a4c; border-radius:6px; overflow:hidden; background:#141a23; }
     .m3td-segment-title { display:flex; align-items:center; justify-content:space-between; min-height:28px; padding:5px 8px;
       color:#dce6f6; background:#202735; border-bottom:1px solid #30394a; }
@@ -257,7 +277,16 @@ function uploadKindForFile(file) {
   return null;
 }
 
-function forwardWheelEvent(event, canvas) {
+function forwardWheelEvent(event, canvas, focusedInput = null) {
+  const input = focusedInput || event.target?.closest?.("textarea");
+  if (input && document.activeElement === input) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const unit = event.deltaMode === 1 ? 18 : event.deltaMode === 2 ? input.clientHeight : 1;
+    input.scrollTop += event.deltaY * unit;
+    input.scrollLeft += event.deltaX * unit;
+    return true;
+  }
   if (!canvas) return false;
   event.preventDefault();
   event.stopPropagation();
@@ -269,8 +298,19 @@ function forwardWheelEvent(event, canvas) {
   }));
 }
 
+// Register before node mounting: Nodes 2.0 can remount nodes and forwards DOM
+// wheel events at an ancestor before listeners installed on individual widgets.
+window.addEventListener("wheel",event=>{
+  const input=document.activeElement;
+  if(input?.tagName!=="TEXTAREA")return;
+  if(!input.closest(".m3td") && !input.matches("[data-m3td-prompt]") && !input.closest('[node-type="MiniMaxH3TimelineDirector"]'))return;
+  const r=input.getBoundingClientRect();
+  if(event.clientX<r.left || event.clientX>r.right || event.clientY<r.top || event.clientY>r.bottom)return;
+  forwardWheelEvent(event,app.canvas?.canvas,input);
+},{capture:true,passive:false});
+
 function emptyState() {
-  return { version: 4, fps: 24, selection: { start: 0, duration: 5 }, videoAudioEnabled: true, videoClips: [], images: [], audios: [], segmentConfig:{count:0,segments:[]} };
+  return { version: 5, fps: 24, globalPrompt:"", selection: { start: 0, duration: 5 }, videoAudioEnabled: true, videoClips: [], images: [], audios: [], segmentConfig:{count:0,segments:[]} };
 }
 
 function normalizedAssetIds(values, validIds) {
@@ -285,6 +325,7 @@ function normalizedAssetIds(values, validIds) {
 function normalizeState(raw) {
   const base = emptyState();
   if (!raw || typeof raw !== "object") return base;
+  base.globalPrompt = String(raw.globalPrompt || "");
   base.selection.start = Math.max(0, num(raw.selection?.start, 0));
   base.selection.duration = Math.max(5 / 24, num(raw.selection?.duration, 5));
   base.videoAudioEnabled = raw.videoAudioEnabled !== false;
@@ -302,9 +343,9 @@ function normalizeState(raw) {
   const rawConfig=raw.segmentConfig&&typeof raw.segmentConfig==="object"?raw.segmentConfig:{};
   const count=clamp(Math.floor(num(rawConfig.count,0)),0,64);
   const sourceSegments=Array.isArray(rawConfig.segments)?rawConfig.segments:[];
-  base.segmentConfig={count,segments:Array.from({length:count},(_,index)=>{
+  base.segmentConfig={count,activeIndex:clamp(Math.floor(num(rawConfig.activeIndex)),0,Math.max(0,count-1)),mode:rawConfig.mode==="timeline"?"timeline":"legacy",segments:Array.from({length:count},(_,index)=>{
     const segment=sourceSegments[index]&&typeof sourceSegments[index]==="object"?sourceSegments[index]:{};
-    return {images:normalizedAssetIds(segment.images,imageIds),audios:normalizedAssetIds(segment.audios,audioIds)};
+    return {...segment,images:normalizedAssetIds(segment.images,imageIds),audios:normalizedAssetIds(segment.audios,audioIds),prompt:String(segment.prompt||"")};
   })};
   return base;
 }
@@ -318,11 +359,12 @@ function viewURL(relative) {
 }
 
 class TimelineDirectorUI {
-  constructor(node, root, widget, brand = "MiniMax H3 Material Planner") {
+  constructor(node, root, widget, brand = "MiniMax H3 Material Planner", isPlanner = true) {
     this.node = node;
     this.root = root;
     this.widget = widget;
     this.brand = brand;
+    this.isPlanner = isPlanner;
     this.state = normalizeState(this.readWidget());
     this.zoom = 64;
     this.selectedId = null;
@@ -338,6 +380,7 @@ class TimelineDirectorUI {
     this.layoutRAF = 0;
     this.previewClipId = null;
     this.segmentCountDraft = this.state.segmentConfig.count;
+    this.activeSegment=this.state.segmentConfig.activeIndex||0;
     this.build();
     this.contentResizeObserver = new ResizeObserver(() => this.scheduleNodeHeightSync());
     this.contentResizeObserver.observe(this.root);
@@ -360,6 +403,7 @@ class TimelineDirectorUI {
       const result = original?.apply(widget, args);
       if (!this._syncingGeneration) {
         const seconds = Math.max(5 / 24, num(widget.value, num(args[0], 5)));
+        if(this.hasSegmentWindows()) { this.editActiveWindow("right",this.activeWindow().startFrame+seconds*24); return result; }
         if (Math.abs(seconds - this.state.selection.duration) > 0.0001) {
           this.state.selection.duration = seconds;
           this.sync(false);
@@ -382,6 +426,7 @@ class TimelineDirectorUI {
   }
 
   sync(updateGeneration = true) {
+    if(this.hasSegmentWindows())this.selectWindowGeometry();
     if (updateGeneration) this.syncGenerationWidget();
     if (this.widget) {
       this.widget.value = JSON.stringify(this.state);
@@ -523,6 +568,7 @@ class TimelineDirectorUI {
           <div class="m3td-preview-note">${esc(tr("previewNote"))}</div>
         </div>
       </div>
+      ${this.isPlanner?`<div class="m3td-global-prompt"><div class="m3td-global-prompt-head"><strong>${esc(tr("globalPrompt"))}</strong><span data-global-prompt-hint>${esc(tr("globalPromptHint"))}</span></div><textarea data-global-prompt placeholder="${esc(tr("globalPrompt"))}"></textarea></div>`:""}
       <div class="m3td-assets">
         <section class="m3td-bin"><div class="m3td-bin-title"><span>${esc(tr("independentImages",{count:0}))}</span><span>${esc(tr("dragSortPictures"))}</span></div><div class="m3td-bin-list" data-bin="images"></div></section>
         <section class="m3td-bin"><div class="m3td-bin-title"><span>${esc(tr("independentAudio",{count:0}))}</span><span>${esc(tr("dragSortAudio"))}</span></div><div class="m3td-bin-list" data-bin="audios"></div></section>
@@ -547,6 +593,12 @@ class TimelineDirectorUI {
     this.previewName = this.root.querySelector(".m3td-preview-name");
     this.previewPlay = this.root.querySelector('[data-action="previewPlay"]');
     this.videoAudioToggle = this.root.querySelector('[data-action="videoAudioToggle"]');
+    this.globalPromptInput = this.root.querySelector('[data-global-prompt]');
+    if(this.globalPromptInput){
+      this.globalPromptInput.value=this.state.globalPrompt;
+      this.globalPromptInput.oninput=()=>{this.state.globalPrompt=this.globalPromptInput.value;this.sync();this.renderGlobalPromptState();};
+      for(const event of ["pointerdown","keydown","keyup"])this.globalPromptInput.addEventListener(event,e=>e.stopPropagation());
+    }
     this.root.querySelector('[data-action="video"]').onclick = () => this.root.querySelector('[data-upload="video"]').click();
     this.root.querySelector('[data-action="image"]').onclick = () => this.root.querySelector('[data-upload="image"]').click();
     this.root.querySelector('[data-action="audio"]').onclick = () => this.root.querySelector('[data-upload="audio"]').click();
@@ -578,6 +630,7 @@ class TimelineDirectorUI {
     const zoomInput = this.root.querySelector('[data-field="zoom"]');
     const segmentCountInput = this.root.querySelector('[data-field="segmentCount"]');
     this.root.addEventListener("input", event => {
+      if(this.hasSegmentWindows()&&(event.target===startInput||event.target===durInput))return;
       if (event.target === startInput) {
         this.state.selection.start = Math.max(0, num(startInput.value));
         this.playhead = this.state.selection.start;
@@ -589,11 +642,18 @@ class TimelineDirectorUI {
         this.segmentCountDraft=clamp(Math.floor(num(segmentCountInput.value,0)),0,64);
       }
     });
-    startInput.onchange = durInput.onchange = () => this.render();
+    startInput.onchange = () => {if(this.hasSegmentWindows())this.editActiveWindow("move",num(startInput.value)*24);else this.render();};
+    durInput.onchange = () => {if(this.hasSegmentWindows())this.editActiveWindow("right",this.activeWindow().startFrame+num(durInput.value)*24);else this.render();};
     zoomInput.oninput = () => { this.zoom = num(zoomInput.value, 64); this.renderTimeline(); };
     this.timelinePointerDown = e => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
       const target = e.target instanceof Element ? e.target : null;
+      const windowPart=target?.closest("[data-window] [data-edge]");
+      if(windowPart){
+        this.activeSegment=num(windowPart.closest("[data-window]").dataset.window);
+        this.selectWindowGeometry();this.renderSegments();
+        this.beginSelectionDrag(e,windowPart.dataset.edge||"move");return;
+      }
       const clipElement = target?.closest(".m3td-clip");
       if (clipElement && this.stage.contains(clipElement)) {
         const clip = this.state.videoClips.find(item => String(item.id) === clipElement.dataset.id);
@@ -624,11 +684,12 @@ class TimelineDirectorUI {
     // press on the timeline so the editing gesture cannot be swallowed.
     this.stage.addEventListener("pointerdown", this.timelinePointerDown, true);
     this.viewport.addEventListener("dblclick", e => {
+      if(this.hasSegmentWindows())return;
       if (e.target.closest(".m3td-clip")) return;
       this.fitSelectionToGapAt(this.timeFromClientX(e.clientX));
     });
     this.forwardWheel = event => forwardWheelEvent(event, app.canvas?.canvas);
-    this.root.addEventListener("wheel", this.forwardWheel, {passive:false});
+    this.root.addEventListener("wheel", this.forwardWheel, {passive:false,capture:true});
   }
 
   bindExternalFileDrop() {
@@ -672,15 +733,19 @@ class TimelineDirectorUI {
 
   timelineDuration() {
     let end = this.state.selection.start + this.state.selection.duration;
+    if(this.hasSegmentWindows())end=Math.max(end,this.state.segmentConfig.segments.at(-1).endFrame/24);
     for (const clip of this.state.videoClips) end = Math.max(end, clip.start + clip.duration);
     return Math.max(10, end + 1);
   }
 
   render() {
+    if(this.hasSegmentWindows())this.selectWindowGeometry();
+    this.root.querySelector('[data-action="fitGap"]').disabled=this.hasSegmentWindows();
     this.root.querySelector('[data-field="selectionStart"]').value = this.state.selection.start.toFixed(2);
     this.root.querySelector('[data-field="selectionDuration"]').value = this.state.selection.duration.toFixed(2);
     this.root.querySelector('[data-field="zoom"]').value = this.zoom;
     this.root.querySelector('[data-field="segmentCount"]').value = this.segmentCountDraft;
+    this.renderGlobalPromptState();
     if (this.videoAudioToggle) {
       this.videoAudioToggle.textContent = tr(this.state.videoAudioEnabled ? "off" : "on");
       this.videoAudioToggle.classList.toggle("off", !this.state.videoAudioEnabled);
@@ -695,6 +760,20 @@ class TimelineDirectorUI {
     this.scheduleNodeHeightSync();
   }
 
+  segmentPromptMode() {
+    return (this.state.segmentConfig?.segments||[]).some(segment=>String(segment.prompt||"").trim());
+  }
+
+  renderGlobalPromptState() {
+    if(!this.globalPromptInput)return;
+    if(document.activeElement!==this.globalPromptInput)this.globalPromptInput.value=this.state.globalPrompt;
+    const inactive=this.segmentPromptMode();
+    const section=this.globalPromptInput.closest(".m3td-global-prompt");
+    section?.classList.toggle("inactive",inactive);
+    const hint=section?.querySelector("[data-global-prompt-hint]");
+    if(hint)hint.textContent=tr(inactive?"globalPromptInactive":"globalPromptHint");
+  }
+
   requiredDirectorHeight() {
     const foot = this.root.querySelector(".m3td-foot");
     if (!foot) return DIRECTOR_HEIGHT;
@@ -705,6 +784,7 @@ class TimelineDirectorUI {
   scheduleNodeHeightSync() {
     cancelAnimationFrame(this.layoutRAF);
     this.layoutRAF = requestAnimationFrame(() => {
+      this.node.__m3tdSyncPrompt?.();
       const desiredHeight = this.requiredDirectorHeight();
       if (this.directorWidget) this.directorWidget.__m3tdHeight = desiredHeight;
       const widgetHost = this.root.closest?.(".dom-widget") || this.root.parentElement;
@@ -719,6 +799,13 @@ class TimelineDirectorUI {
       const currentWidth = this.node.size?.[0] || computed?.[0] || 860;
       const currentHeight = this.node.size?.[1] || 0;
       const computedHeight = Number(computed?.[1]) || 0;
+      // Do not clamp the node back to its previous minimum while the user is
+      // dragging a resize handle. onResize converts the vertical delta into
+      // prompt height; after release, the normal layout minimum is recomputed.
+      if(this.node.__m3tdIsResizing){
+        this.node.setDirtyCanvas?.(true,true);
+        return;
+      }
       const chromeCandidate = computedHeight - desiredHeight;
       if (chromeCandidate >= 36 && chromeCandidate <= 600) {
         this.node.__m3tdChromeHeight = chromeCandidate;
@@ -726,8 +813,11 @@ class TimelineDirectorUI {
       const chromeHeight = Number(this.node.__m3tdChromeHeight) || 120;
       const minimumHeight = Math.ceil(Math.max(computedHeight, desiredHeight + chromeHeight));
       if (Math.abs(currentHeight - minimumHeight) > 1) {
-        this.node.setSize?.([currentWidth, minimumHeight]);
+        this.node.__m3tdApplyingLayout = true;
+        try { this.node.setSize?.([currentWidth, minimumHeight]); }
+        finally { this.node.__m3tdApplyingLayout = false; }
       }
+      this.node.__m3tdLastLayoutHeight = this.node.size?.[1];
       this.node.setDirtyCanvas?.(true, true);
     });
   }
@@ -748,8 +838,11 @@ class TimelineDirectorUI {
     html += `</div><div class="m3td-track audio ${this.state.videoAudioEnabled ? "" : "muted"}">`;
     for (const clip of this.state.videoClips) if (clip.hasAudio) html += this.audioClipHTML(clip);
     html += '</div>';
-    const sel = this.state.selection;
-    html += `<div class="m3td-selection" data-role="selection" style="left:${sel.start*this.zoom}px;width:${Math.max(8,sel.duration*this.zoom)}px"><b class="m3td-sel-move" data-edge="move" title="${esc(tr("moveGenerationRegion"))}">GEN</b><i class="m3td-sel-handle left" data-edge="left" title="${esc(tr("adjustGenerationStart"))}"></i><i class="m3td-sel-handle right" data-edge="right" title="${esc(tr("adjustGenerationEnd"))}"></i></div>`;
+    const windows=this.hasSegmentWindows()?this.state.segmentConfig.segments.map((s,i)=>({start:s.startFrame/24,duration:(s.endFrame-s.startFrame)/24,index:i})):[this.state.selection];
+    for(const sel of windows){
+      const segmented=sel.index!=null, active=!segmented||sel.index===(this.activeSegment||0);
+      html += `<div class="m3td-selection ${segmented?"m3td-window":""} ${active?"active":""}" ${segmented?`data-window="${sel.index}"`:""} data-role="selection" style="left:${sel.start*this.zoom}px;width:${Math.max(8,sel.duration*this.zoom)}px;${segmented?`border-color:hsl(${(sel.index*97+175)%360} 75% 55%);z-index:${active?7:4};`:""}"><b class="m3td-sel-move" data-edge="move" title="${esc(tr("moveGenerationRegion"))}">GEN${segmented?sel.index+1:""}</b><i class="m3td-sel-handle left" data-edge="left" title="${esc(tr("adjustGenerationStart"))}"></i><i class="m3td-sel-handle right" data-edge="right" title="${esc(tr("adjustGenerationEnd"))}"></i></div>`;
+    }
     html += `<div class="m3td-snap-guide" style="left:${(this.snapGuide ?? 0)*this.zoom}px;${this.snapGuide == null ? "display:none" : ""}"></div>`;
     html += `<div class="m3td-playhead" data-role="playhead" title="${esc(tr("movePlayhead"))}" style="left:${this.playhead*this.zoom}px"></div>`;
     this.stage.innerHTML = html;
@@ -941,6 +1034,7 @@ class TimelineDirectorUI {
     const rect = this.stage.getBoundingClientRect();
     const canvasScale = rect.width / Math.max(1, this.stage.offsetWidth);
     this.drag = { kind:"selection", mode, x:event.clientX, scale:canvasScale, start:this.state.selection.start, duration:this.state.selection.duration };
+    if(this.hasSegmentWindows())this.drag.windows=this.state.segmentConfig.segments.map(s=>({...s}));
   }
 
   beginPlayheadDrag(event) {
@@ -980,7 +1074,12 @@ class TimelineDirectorUI {
   }
 
   updateDragVisuals() {
-    const selection = this.stage.querySelector(".m3td-selection");
+    if(this.hasSegmentWindows())for(const el of this.stage.querySelectorAll("[data-window]")){
+      const s=this.state.segmentConfig.segments[num(el.dataset.window)];
+      el.style.left=`${s.startFrame/24*this.zoom}px`;el.style.width=`${(s.endFrame-s.startFrame)/24*this.zoom}px`;
+      el.style.zIndex=num(el.dataset.window)===(this.activeSegment||0)?7:4;
+    }
+    const selection = this.hasSegmentWindows()?null:this.stage.querySelector(".m3td-selection");
     if (selection) {
       selection.style.left = `${this.state.selection.start * this.zoom}px`;
       selection.style.width = `${Math.max(8, this.state.selection.duration * this.zoom)}px`;
@@ -1034,6 +1133,11 @@ class TimelineDirectorUI {
         this.playhead = snapped.value; this.snapGuide = snapped.snapAt; this.scheduleDragVisualUpdate(); return;
       }
       const delta = (e.clientX - this.drag.x) / (this.zoom * (this.drag.scale || 1));
+      if(this.drag.windows){
+        const frame=(this.drag.start+(this.drag.mode==="right"?this.drag.duration:0)+delta)*24;
+        this.state.segmentConfig.segments=editWindow(this.drag.windows,this.activeSegment||0,this.drag.mode,frame);
+        this.selectWindowGeometry();this.scheduleDragVisualUpdate();return;
+      }
       if (this.drag.kind === "selection") {
         const points = this.snapPoints(null, false);
         if (this.drag.mode === "move") {
@@ -1162,13 +1266,28 @@ class TimelineDirectorUI {
     }
   }
 
+  hasSegmentWindows() { return this.state.segmentConfig?.mode==="timeline"&&this.state.segmentConfig.count>0; }
+
+  activeWindow() { return this.state.segmentConfig.segments[this.activeSegment||0]; }
+
+  selectWindowGeometry() {
+    this.activeSegment=clamp(this.activeSegment||0,0,this.state.segmentConfig.count-1);
+    this.state.segmentConfig.activeIndex=this.activeSegment;
+    const s=this.activeWindow();
+    this.state.selection={start:s.startFrame/24,duration:(s.endFrame-s.startFrame)/24};
+  }
+
+  editActiveWindow(mode,frame) {
+    this.state.segmentConfig.segments=editWindow(this.state.segmentConfig.segments,this.activeSegment||0,mode,frame);
+    this.selectWindowGeometry();this.sync();this.render();
+  }
+
   applySegmentCount() {
     const count=clamp(Math.floor(num(this.segmentCountDraft,0)),0,64);
     const previous=Array.isArray(this.state.segmentConfig?.segments)?this.state.segmentConfig.segments:[];
-    this.state.segmentConfig={count,segments:Array.from({length:count},(_,index)=>({
-      images:[...(previous[index]?.images||[])],
-      audios:[...(previous[index]?.audios||[])],
-    }))};
+    this.state.segmentConfig={count,mode:"timeline",segments:createWindows(previous,count,this.state.selection.duration*24)};
+    this.activeSegment=Math.min(this.activeSegment||0,Math.max(0,count-1));
+    if(count)this.selectWindowGeometry();
     this.segmentCountDraft=count;
     this.pruneSegmentAssignments();
     this.sync();this.render();
@@ -1200,12 +1319,28 @@ class TimelineDirectorUI {
     const count=this.state.segmentConfig?.count||0;
     section.hidden=count<=0;
     if(count<=0){list.innerHTML="";return;}
-    list.innerHTML=this.state.segmentConfig.segments.map((segment,index)=>`<section class="m3td-segment" data-segment="${index}">
-      <div class="m3td-segment-title"><strong>${esc(tr("segmentTitle",{index:index+1}))}</strong><span>${esc(tr("segmentPromptMatch",{index:index+1}))}</span></div>
+    const timelineMode=this.hasSegmentWindows();
+    section.querySelector(".m3td-segment-head strong").textContent=tr(timelineMode?"segmentTabs":"assignByPrompt");
+    const tabs=timelineMode?`<div class="m3td-segment-tabs">${this.state.segmentConfig.segments.map((s,i)=>`<button type="button" class="m3td-btn" data-select-segment="${i}" style="border-color:hsl(${(i*97+175)%360} 75% 55%);${i===(this.activeSegment||0)?"background:#34505b":""}">${esc(tr("segmentTitle",{index:i+1}))}</button>`).join("")}</div><p>${esc(tr("segmentTimelineHelp"))}<br>${esc(tr("segmentPlanHint"))}</p>`:"";
+    list.innerHTML=tabs+this.state.segmentConfig.segments.map((segment,index)=>{
+      if(timelineMode&&index!==(this.activeSegment||0))return "";
+      const overlap=index?this.state.segmentConfig.segments[index-1].endFrame-segment.startFrame:0;
+      const timing=timelineMode?tr("segmentTiming",{start:(segment.startFrame/24).toFixed(3),end:(segment.endFrame/24).toFixed(3),frames:segment.endFrame-segment.startFrame,overlap}):tr("segmentPromptMatch",{index:index+1});
+      return `<section class="m3td-segment" data-segment="${index}">
+      <div class="m3td-segment-title"><strong>${esc(tr("segmentTitle",{index:index+1}))}</strong><span>${esc(timing)}</span></div>
       <div class="m3td-segment-bins">
         <div class="m3td-segment-bin" data-segment-drop="images" data-segment-index="${index}"><label class="m3td-segment-bin-label">${esc(tr("segmentImages"))}</label><div class="m3td-segment-bin-list">${segment.images.map((id,i)=>this.segmentAssetHTML("images",id,i,index)).join("")}</div></div>
         <div class="m3td-segment-bin" data-segment-drop="audios" data-segment-index="${index}"><label class="m3td-segment-bin-label">${esc(tr("segmentAudio"))}</label><div class="m3td-segment-bin-list">${segment.audios.map((id,i)=>this.segmentAssetHTML("audios",id,i,index)).join("")}</div></div>
-      </div></section>`).join("");
+      </div>${timelineMode?`<label class="m3td-prompt-label">${esc(tr("segmentPrompt"))}<textarea class="m3td-segment-prompt" data-segment-prompt="${index}" placeholder="${esc(tr("segmentPrompt"))}">${esc(segment.prompt||"")}</textarea></label>${index&&overlap===0?`<p>${esc(tr("segmentBoundary"))}</p>`:""}`:""}</section>`;
+    }).join("");
+    for(const button of list.querySelectorAll("[data-select-segment]"))button.onclick=()=>{
+      this.activeSegment=num(button.dataset.selectSegment);this.selectWindowGeometry();this.sync();this.render();
+    };
+    for(const input of list.querySelectorAll("[data-segment-prompt]")){
+      input.oninput=()=>{this.state.segmentConfig.segments[num(input.dataset.segmentPrompt)].prompt=input.value;this.sync();this.renderGlobalPromptState();};
+      // Keep text editing inside the DOM widget under Nodes 2.0.
+      for(const event of ["pointerdown","keydown","keyup"])input.addEventListener(event,e=>e.stopPropagation());
+    }
     for(const button of list.querySelectorAll("[data-remove-segment-asset]"))button.onclick=event=>{
       event.stopPropagation();
       const card=button.closest("[data-segment-asset]"),segment=this.state.segmentConfig.segments[num(card.dataset.segmentIndex)];
@@ -1238,17 +1373,19 @@ class TimelineDirectorUI {
 
   renderTags() {
     const plan=this.referencePlan();
-    const independentPictures=this.state.images.length;
+    const segment=this.hasSegmentWindows()?this.activeWindow():null;
+    const independentPictures=segment?segment.images.length:this.state.images.length;
     const videoText=plan.videoPieces.length ? tr("normalVideoRefs",{count:plan.videoPieces.length}) : tr("noNormalVideoRefs");
-    const audioTotal=plan.pairedAudioCount+this.state.audios.length;
+    const audioCount=segment?segment.audios.length:this.state.audios.length;
+    const audioTotal=plan.pairedAudioCount+audioCount;
     const pictureText=independentPictures ? tr("independentPictures",{count:independentPictures}) : tr("noIndependentPictures");
     const guideFrames=plan.guidePieces.reduce((sum,item)=>sum+item.frames,0);
     const fullGuides=plan.guidePieces.filter(item=>item.mode==="guide").length;
     const edgeGuides=plan.guidePieces.filter(item=>item.mode==="boundary").length;
     const guideParts=[fullGuides?tr("nativeFixed",{count:fullGuides}):"",edgeGuides?tr("boundaryFixed",{count:edgeGuides}):""].filter(Boolean).join(" + ");
     const guideText=plan.guidePieces.length ? tr("guideSummary",{parts:guideParts,frames:guideFrames}) : (plan.gapGuideCount ? tr("gapGuide",{count:plan.gapGuideCount}) : tr("noFixedGuide"));
-    const standaloneAudio=this.state.audios.length ? tr("standaloneAudioRefs",{count:this.state.audios.length}) : tr("noStandaloneAudio");
-    const pairedAudio=!this.state.videoAudioEnabled ? tr("videoAudioDisabled") : (plan.pairedAudioCount ? tr("pairedVideoAudio",{start:this.state.audios.length+1,end:audioTotal}) : tr("noVideoAudioLabels"));
+    const standaloneAudio=audioCount ? tr("standaloneAudioRefs",{count:audioCount}) : tr("noStandaloneAudio");
+    const pairedAudio=!this.state.videoAudioEnabled ? tr("videoAudioDisabled") : (plan.pairedAudioCount ? tr("pairedVideoAudio",{start:audioCount+1,end:audioTotal}) : tr("noVideoAudioLabels"));
     const segmentText=this.state.segmentConfig.count?tr("segmentFilterSummary",{count:this.state.segmentConfig.count}):tr("noSegmentFilter");
     this.root.querySelector(".m3td-tags").textContent = `${segmentText} · ${pictureText} · ${guideText} · ${videoText} · ${standaloneAudio} · ${pairedAudio}`;
   }
@@ -1270,6 +1407,7 @@ class TimelineDirectorUI {
   }
 
   fitSelectionToGapAt(time) {
+    if(this.hasSegmentWindows())return;
     const gaps=this.timelineGaps();
     if(!gaps.length){this.setStatus(tr("noMatchingGap"));return;}
     const gap=gaps.reduce((best,current)=>{
@@ -1330,11 +1468,11 @@ class TimelineDirectorUI {
     finally{this.uploading=false;setTimeout(()=>{this.progress.style.width="0";},800);}
   }
 
-  reload() { this.previewVideo?.pause();this.state=normalizeState(this.readWidget());this.segmentCountDraft=this.state.segmentConfig.count;this.selectedId=null;this.playhead=this.state.selection.start;this.previewClipId=null;this.bindGenerationWidget();this.syncGenerationWidget();this.render(); }
+  reload() { this.previewVideo?.pause();this.state=normalizeState(this.readWidget());this.activeSegment=this.state.segmentConfig.activeIndex||0;this.segmentCountDraft=this.state.segmentConfig.count;this.selectedId=null;this.playhead=this.state.selection.start;this.previewClipId=null;this.bindGenerationWidget();this.syncGenerationWidget();this.render(); }
   destroy() {
     cancelAnimationFrame(this.previewRAF);cancelAnimationFrame(this.dragRAF);cancelAnimationFrame(this.layoutRAF);this.contentResizeObserver?.disconnect();this.previewVideo?.pause();window.removeEventListener("pointermove",this.pointerMove,true);window.removeEventListener("pointerup",this.pointerUp,true);window.removeEventListener("pointercancel",this.pointerUp,true);
     this.stage?.removeEventListener("pointerdown",this.timelinePointerDown,true);
-    this.root.removeEventListener("wheel",this.forwardWheel);
+    this.root.removeEventListener("wheel",this.forwardWheel,true);
     if(this.externalDropHandlers){
       this.root.removeEventListener("dragenter",this.externalDropHandlers.showDropTarget,true);
       this.root.removeEventListener("dragover",this.externalDropHandlers.showDropTarget,true);
@@ -1347,28 +1485,6 @@ class TimelineDirectorUI {
 app.registerExtension({
   name: "MiniMaxH3.TimelineDirector",
   async beforeRegisterNodeDef(nodeType,nodeData) {
-    if(nodeData.name==="MiniMaxH3LongReferenceSegmentPlan"){
-      const originalConfigure=nodeType.prototype.onConfigure;
-      nodeType.prototype.onConfigure=function(info){
-        const result=originalConfigure?.apply(this,arguments);
-        // Local preview builds exposed Segment Duration between Prompt and
-        // Overlap Frames.  Restore the remaining values by name/legacy index
-        // after that widget was removed, so saved workflows do not shift.
-        const legacy=Array.isArray(info?.widgets_values)&&info.widgets_values.length>=4?info.widgets_values:null;
-        const named=info?.widgets_values_named;
-        const values={
-          prompt:named?.prompt??legacy?.[0],
-          overlap_frames:named?.overlap_frames??legacy?.[2],
-          slice_reference_audio:named?.slice_reference_audio??legacy?.[3],
-        };
-        for(const [name,value] of Object.entries(values)){
-          const widget=this.widgets?.find(item=>item.name===name);
-          if(widget&&value!==undefined)widget.value=value;
-        }
-        return result;
-      };
-      return;
-    }
     if(nodeData.name==="MiniMaxH3FiniteSegmentSampler"){
       const originalConfigure=nodeType.prototype.onConfigure;
       nodeType.prototype.onConfigure=function(info){
@@ -1425,8 +1541,62 @@ app.registerExtension({
       requestAnimationFrame(()=>root.parentElement?.classList.add("m3td-widget-host"));
       directorWidget.computeSize=width=>[Math.max(100,(this.size?.[0]||width||860)-20),directorWidget.__m3tdHeight||DIRECTOR_HEIGHT];
       const brand=tr(nodeData.name==="MiniMaxH3TimelinePlanner"?"brandPlanner":"brandDirector");
-      this.__m3td=new TimelineDirectorUI(this,root,timelineWidget,brand);
+      this.__m3td=new TimelineDirectorUI(this,root,timelineWidget,brand,nodeData.name==="MiniMaxH3TimelinePlanner");
       this.__m3td.directorWidget=directorWidget;
+      this.__m3tdFocusedTextWheel=e=>{
+        let input=e.target?.closest?.("textarea");
+        // Vue may forward the wheel to the canvas before this listener runs.
+        // Consume that forwarded event when it still points at our focused text.
+        if(!input && e.target===app.canvas?.canvas && document.activeElement?.tagName==="TEXTAREA"){
+          const active=document.activeElement,r=active.getBoundingClientRect();
+          if(e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom)input=active;
+        }
+        const nativePrompt=this.widgets?.find(w=>w.name==="prompt");
+        if(input && document.activeElement===input && (root.contains(input) || input===nativePrompt?.element || input===nativePrompt?.inputEl || input.closest(`[node-id="${this.id}"][node-type="${nodeData.name}"]`)))forwardWheelEvent(e,app.canvas?.canvas,input);
+      };
+      window.addEventListener("wheel",this.__m3tdFocusedTextWheel,{capture:true,passive:false});
+      const promptWidget=this.widgets?.find(w=>w.name==="prompt");
+      if(promptWidget){
+        this.properties ||= {};
+        this.properties.m3tdPromptHeight ||= 120;
+        // While resizing, expose the true minimum rather than locking the node
+        // to its currently expanded prompt height. Layout restores the chosen height.
+        promptWidget.computeSize=width=>[width,this.__m3tdIsResizing?60:Math.max(60,Number(this.properties.m3tdPromptHeight)||120)];
+        const promptElement=promptWidget.element || promptWidget.inputEl;
+        if(promptElement)promptElement.dataset.m3tdPrompt="true";
+        promptElement?.addEventListener("wheel",e=>forwardWheelEvent(e,app.canvas?.canvas),{passive:false,capture:true});
+        // Nodes 2.0 renders a Vue textarea instead of promptWidget.element.
+        this.__m3tdSyncPrompt=()=>{
+          for(const input of document.querySelectorAll(`[node-id="${this.id}"][node-type="${nodeData.name}"] textarea`)){
+            if(input.closest(".m3td") || input.placeholder==="timeline_data")continue;
+            input.style.setProperty("height",`${Math.max(60,Number(this.properties.m3tdPromptHeight)||120)}px`,"important");
+          }
+        };
+        this.__m3tdPromptWheel=e=>{
+          const input=e.target?.closest?.("textarea");
+          if(input?.closest(`[node-id="${this.id}"][node-type="${nodeData.name}"]`) && !input.closest(".m3td"))forwardWheelEvent(e,app.canvas?.canvas);
+        };
+        document.addEventListener("wheel",this.__m3tdPromptWheel,{capture:true,passive:false});
+        this.__m3tdResizePointerDown=e=>{
+          this.__m3tdPointerHeld=true;
+          const resizeHandle=e.target?.closest?.('[data-corner]');
+          this.__m3tdResizeCandidate=!!resizeHandle;
+          this.__m3tdResizeStartY=e.clientY;
+          this.__m3tdResizeLastY=e.clientY;
+          this.__m3tdResizeStartPromptHeight=Math.max(60,Number(this.properties.m3tdPromptHeight)||120);
+          this.__m3tdIsResizing=false;
+        };
+        this.__m3tdResizePointerMove=e=>{if(this.__m3tdPointerHeld)this.__m3tdResizeLastY=e.clientY;};
+        this.__m3tdResizePointerUp=()=>{
+          this.__m3tdPointerHeld=false;this.__m3tdIsResizing=false;this.__m3tdResizeCandidate=false;
+          this.__m3td?.scheduleNodeHeightSync();
+        };
+        window.addEventListener("pointerdown",this.__m3tdResizePointerDown,true);
+        window.addEventListener("pointermove",this.__m3tdResizePointerMove,true);
+        window.addEventListener("pointerup",this.__m3tdResizePointerUp,true);
+        window.addEventListener("pointercancel",this.__m3tdResizePointerUp,true);
+        for(const delay of [0,50,250,1000])setTimeout(()=>this.__m3td?.scheduleNodeHeightSync(),delay);
+      }
       // The Vue DOM widget can mount one or more frames after onNodeCreated.
       // Retry after mount; subsequent resize/configure hooks keep it hidden.
       for(const delay of [0,50,250,1000])setTimeout(()=>this.__m3tdHideTimelineWidget?.(),delay);
@@ -1439,10 +1609,29 @@ app.registerExtension({
       return result;
     };
     const originalResize=nodeType.prototype.onResize;
-    nodeType.prototype.onResize=function(){const result=originalResize?.apply(this,arguments);this.__m3tdHideTimelineWidget?.();this.__m3td?.scheduleNodeHeightSync();return result;};
+    nodeType.prototype.onResize=function(){
+      const result=originalResize?.apply(this,arguments);
+      const activelyResizing=this.__m3tdResizeCandidate || app.canvas?.resizing_node===this;
+      if(!this.__m3tdApplyingLayout && this.__m3tdPointerHeld && activelyResizing && this.widgets?.some(w=>w.name==="prompt")){
+        this.__m3tdIsResizing=true;
+        const scale=Math.max(.05,Number(app.canvas?.ds?.scale)||1);
+        const pointerDelta=(Number(this.__m3tdResizeLastY)||0)-(Number(this.__m3tdResizeStartY)||0);
+        this.properties.m3tdPromptHeight=Math.max(60,(Number(this.__m3tdResizeStartPromptHeight)||120)+pointerDelta/scale);
+        this.__m3tdSyncPrompt?.();
+      }
+      this.__m3tdHideTimelineWidget?.();this.__m3td?.scheduleNodeHeightSync();return result;
+    };
     const originalConfigure=nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure=function(){const result=originalConfigure?.apply(this,arguments);setTimeout(()=>{this.__m3tdHideTimelineWidget?.();this.__m3td?.reload();this.__m3td?.scheduleNodeHeightSync();},0);return result;};
     const originalRemoved=nodeType.prototype.onRemoved;
-    nodeType.prototype.onRemoved=function(){this.__m3td?.destroy();return originalRemoved?.apply(this,arguments);};
+    nodeType.prototype.onRemoved=function(){
+      document.removeEventListener("wheel",this.__m3tdPromptWheel,true);
+      window.removeEventListener("wheel",this.__m3tdFocusedTextWheel,true);
+      window.removeEventListener("pointerdown",this.__m3tdResizePointerDown,true);
+      window.removeEventListener("pointermove",this.__m3tdResizePointerMove,true);
+      window.removeEventListener("pointerup",this.__m3tdResizePointerUp,true);
+      window.removeEventListener("pointercancel",this.__m3tdResizePointerUp,true);
+      this.__m3td?.destroy();return originalRemoved?.apply(this,arguments);
+    };
   }
 });
