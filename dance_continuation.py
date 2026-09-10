@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
+import torch.nn.functional as F
 
 
 @dataclass(frozen=True)
@@ -146,6 +147,29 @@ def build_linear_context_strength(
     held = torch.full((context - taper,), start, dtype=torch.float32)
     release = torch.linspace(start, end, steps=taper, dtype=torch.float32)
     return torch.cat((held, release))
+
+
+def context_strength_to_latent_mask(
+    rgb_strength: torch.Tensor, latent_ticks: int
+) -> torch.Tensor:
+    """Resample RGB continuity strength into H3 latent noise-mask ticks."""
+
+    if rgb_strength.ndim != 1:
+        raise ValueError("rgb_strength must be a one-dimensional tensor")
+    ticks = int(latent_ticks)
+    if rgb_strength.numel() == 0:
+        if ticks != 0:
+            raise ValueError("empty rgb_strength requires latent_ticks=0")
+        return rgb_strength.clone().to(dtype=torch.float32)
+    if ticks <= 0:
+        raise ValueError("latent_ticks must be positive for nonempty rgb_strength")
+    sampled_strength = F.interpolate(
+        rgb_strength.to(dtype=torch.float32).reshape(1, 1, -1),
+        size=ticks,
+        mode="linear",
+        align_corners=True,
+    ).reshape(-1)
+    return (1.0 - sampled_strength).clamp_(0.0, 1.0)
 
 
 def format_dance_segment_debug(segment: DanceSegmentDebug) -> str:

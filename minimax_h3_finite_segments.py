@@ -20,10 +20,13 @@ from .drift_control_av import (
     install_drift_control_av_model,
 )
 from .dance_continuation import (
+    build_linear_context_strength,
     build_dance_segment_report,
+    context_strength_to_latent_mask,
     format_dance_segment_debug,
     parse_dance_continuation,
     resolve_context_timing,
+    rgb_frames_to_h3_latent_ticks,
 )
 from .minimax_h3_timeline_director import (
     TimelinePlan,
@@ -468,6 +471,11 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
                 io.Int.Input("overlap_frames", default=22, min=0, max=362),
                 io.Boolean.Input("continue_audio_latent", default=True),
                 io.Boolean.Input("dance_continuation_enabled", default=False),
+                io.Int.Input("context_frames", default=24, min=0, max=362),
+                io.Boolean.Input("taper_enabled", default=False),
+                io.Int.Input("taper_frames", default=12, min=0, max=362),
+                io.Float.Input("start_strength", default=1.0, min=0.0, max=1.0),
+                io.Float.Input("end_strength", default=0.0, min=0.0, max=1.0),
                 io.Model.Input("model"),
                 io.Sigmas.Input("sigmas"),
                 io.Latent.Input("previous_latent", optional=True),
@@ -485,6 +493,8 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
         cls, positive, target_latent, iteration, overlap_frames,
         continue_audio_latent, model, sigmas, previous_latent=None,
         dance_continuation_enabled=False,
+        context_frames=24, taper_enabled=False, taper_frames=12,
+        start_strength=1.0, end_strength=0.0,
     ):
         requested_overlap = int(overlap_frames)
         actual_overlap = (
@@ -498,6 +508,18 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
             return io.NodeOutput(positive, target_latent, 0, model)
         if previous_latent is None:
             raise ValueError("Segment 2 and later require the previous sampled latent")
+        video_mask_values = None
+        if bool(dance_continuation_enabled):
+            rgb_strength = build_linear_context_strength(
+                context_frames=int(context_frames),
+                taper_frames=int(taper_frames) if bool(taper_enabled) else 0,
+                start_strength=float(start_strength),
+                end_strength=float(end_strength),
+            )
+            video_mask_values = context_strength_to_latent_mask(
+                rgb_strength,
+                rgb_frames_to_h3_latent_ticks(int(context_frames)),
+            )
         masked_target, details = _apply_linear_temporal_noise_mask(
             target_latent=target_latent,
             source_latent=previous_latent,
@@ -505,7 +527,15 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
             include_audio=bool(continue_audio_latent),
             gradient=False,
             audio_soft_release=bool(continue_audio_latent),
+            video_mask_values=video_mask_values,
         )
+        if bool(dance_continuation_enabled):
+            print(
+                f"[DANCE] segment={int(iteration) + 1} "
+                f"continuity_rgb_frames={int(context_frames)} "
+                f"continuity_latent_ticks={details['video_tokens']} "
+                f"taper_rgb_frames={int(taper_frames) if bool(taper_enabled) else 0}"
+            )
         patched_model = install_drift_control_av_model(
             model, masked_target, sigmas, prefix_steps=details["video_tokens"]
         )
@@ -701,6 +731,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
         dance_enabled = bool(
             (finite.get("dance_continuation") or {}).get("enabled", False)
         )
+        dance_config = finite.get("dance_continuation") or {}
         soft_audio = bool(continue_audio_latent)
         steps = drift_control_step_count(sigmas)
         if steps < 1:
@@ -721,6 +752,11 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 "iteration": index, "overlap_frames": overlap,
                 "continue_audio_latent": bool(continue_audio_latent),
                 "dance_continuation_enabled": dance_enabled,
+                "context_frames": int(dance_config.get("context_frames", 24)),
+                "taper_enabled": bool(dance_config.get("taper_enabled", False)),
+                "taper_frames": int(dance_config.get("taper_frames", 12)),
+                "start_strength": float(dance_config.get("start_strength", 1.0)),
+                "end_strength": float(dance_config.get("end_strength", 0.0)),
                 "model": model, "sigmas": sigmas,
             }
             if previous_latent is not None:

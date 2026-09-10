@@ -288,3 +288,32 @@ def test_linear_context_strength_rejects_invalid_values(
 
     with pytest.raises(ValueError, match=message):
         dance.build_linear_context_strength(context, taper, start, end)
+
+
+def test_rgb_strength_converts_to_latent_mask_without_one_to_one_assumption():
+    dance = load_dance_module()
+    strength = dance.build_linear_context_strength(24, 12, 1.0, 0.0)
+
+    noise_mask = dance.context_strength_to_latent_mask(strength, latent_ticks=7)
+
+    assert noise_mask.shape == (7,)
+    assert noise_mask[0].item() == pytest.approx(0.0)
+    assert noise_mask[-1].item() == pytest.approx(1.0)
+    assert torch.all(noise_mask[1:] >= noise_mask[:-1])
+
+
+def test_constant_continuity_strength_maps_to_constant_noise_mask():
+    dance = load_dance_module()
+    strength = dance.build_linear_context_strength(24, 0, 0.8, 0.0)
+
+    noise_mask = dance.context_strength_to_latent_mask(strength, latent_ticks=7)
+
+    assert torch.allclose(noise_mask, torch.full((7,), 0.2))
+
+
+@pytest.mark.parametrize("latent_ticks", [-1, 0])
+def test_nonempty_rgb_strength_requires_positive_latent_ticks(latent_ticks):
+    dance = load_dance_module()
+
+    with pytest.raises(ValueError, match="latent_ticks"):
+        dance.context_strength_to_latent_mask(torch.ones(24), latent_ticks)
