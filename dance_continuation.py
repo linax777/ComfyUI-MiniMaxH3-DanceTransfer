@@ -21,6 +21,44 @@ class DanceSegmentDebug:
     context_latent_ticks: int
 
 
+@dataclass(frozen=True)
+class DanceContinuationConfig:
+    enabled: bool = False
+    context_frames: int = 24
+    taper_enabled: bool = False
+    taper_frames: int = 12
+    start_strength: float = 1.0
+    end_strength: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.context_frames < 0:
+            raise ValueError("context_frames cannot be negative")
+        if self.taper_frames < 0:
+            raise ValueError("taper_frames cannot be negative")
+        if self.taper_frames > self.context_frames:
+            raise ValueError("taper_frames cannot exceed context_frames")
+        if not 0.0 <= self.start_strength <= 1.0:
+            raise ValueError("start_strength must be in [0, 1]")
+        if not 0.0 <= self.end_strength <= 1.0:
+            raise ValueError("end_strength must be in [0, 1]")
+
+
+def parse_dance_continuation(timeline: object) -> DanceContinuationConfig:
+    """Parse version-tolerant dance configuration from timeline JSON."""
+
+    timeline_data = timeline if isinstance(timeline, dict) else {}
+    raw = timeline_data.get("danceContinuation")
+    values = raw if isinstance(raw, dict) else {}
+    return DanceContinuationConfig(
+        enabled=bool(values.get("enabled", False)),
+        context_frames=int(values.get("contextFrames", 24)),
+        taper_enabled=bool(values.get("taperEnabled", False)),
+        taper_frames=int(values.get("taperFrames", 12)),
+        start_strength=float(values.get("startStrength", 1.0)),
+        end_strength=float(values.get("endStrength", 0.0)),
+    )
+
+
 def align_h3_context_frames(requested_frames: int) -> int:
     """Align an RGB duration down to H3's legal 1 or ``17*k+5`` grid."""
 

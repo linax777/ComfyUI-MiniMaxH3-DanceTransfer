@@ -6,6 +6,7 @@ import copy
 import json
 import math
 import re
+from dataclasses import asdict
 
 from comfy_api.latest import io
 from comfy_execution.graph_utils import GraphBuilder
@@ -21,6 +22,7 @@ from .drift_control_av import (
 from .dance_continuation import (
     build_dance_segment_report,
     format_dance_segment_debug,
+    parse_dance_continuation,
 )
 from .minimax_h3_timeline_director import (
     TimelinePlan,
@@ -135,6 +137,7 @@ def _prepare_long_reference_plan(
         raise ValueError("The shared prompt cannot be empty")
 
     timeline = source["timeline"]
+    dance_config = parse_dance_continuation(timeline)
     clips = [
         item for item in timeline.get("videoClips", [])
         if isinstance(item, dict) and item.get("file")
@@ -261,6 +264,7 @@ def _prepare_long_reference_plan(
             else "video" if video_duration > 0 else "audio"
         ),
         "slice_reference_audio": bool(slice_reference_audio),
+        "dance_continuation": asdict(dance_config),
     }
 
 
@@ -272,6 +276,7 @@ def _prepare_finite_plan(
     inject_continuity: bool,
 ):
     source = _require_timeline_plan(plan)
+    dance_config = parse_dance_continuation(source.get("timeline"))
     count = int(segment_count)
     configured_count = int(source.get("segment_count") or 0)
     if configured_count > 0 and configured_count != count:
@@ -301,6 +306,7 @@ def _prepare_finite_plan(
         "segment_count": count,
         "requested_overlap_frames": int(overlap_frames),
         "overlap_frames": actual_overlap,
+        "dance_continuation": asdict(dance_config),
     }
 
 

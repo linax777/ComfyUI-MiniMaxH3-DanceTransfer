@@ -118,3 +118,62 @@ def test_dance_segment_report_rejects_invalid_ranges(
 
     with pytest.raises(ValueError, match=message):
         dance.build_dance_segment_report(total_frames, segment_frames, context_frames)
+
+
+def test_old_workflow_defaults_to_disabled_dance_continuation():
+    dance = load_dance_module()
+
+    config = dance.parse_dance_continuation({"selection": {"start": 0}})
+
+    assert config == dance.DanceContinuationConfig()
+    assert config.enabled is False
+    assert config.context_frames == 24
+    assert config.taper_enabled is False
+    assert config.taper_frames == 12
+    assert config.start_strength == 1.0
+    assert config.end_strength == 0.0
+
+
+def test_dance_continuation_parses_serialized_values():
+    dance = load_dance_module()
+
+    config = dance.parse_dance_continuation(
+        {
+            "danceContinuation": {
+                "enabled": True,
+                "contextFrames": 30,
+                "taperEnabled": True,
+                "taperFrames": 18,
+                "startStrength": 0.8,
+                "endStrength": 0.2,
+            }
+        }
+    )
+
+    assert config == dance.DanceContinuationConfig(
+        enabled=True,
+        context_frames=30,
+        taper_enabled=True,
+        taper_frames=18,
+        start_strength=0.8,
+        end_strength=0.2,
+    )
+
+
+@pytest.mark.parametrize(
+    ("values", "message"),
+    [
+        ({"contextFrames": -1}, "context_frames"),
+        ({"contextFrames": 4, "taperFrames": 5}, "taper_frames"),
+        ({"taperFrames": -1}, "taper_frames"),
+        ({"startStrength": -0.01}, "start_strength"),
+        ({"startStrength": 1.01}, "start_strength"),
+        ({"endStrength": -0.01}, "end_strength"),
+        ({"endStrength": 1.01}, "end_strength"),
+    ],
+)
+def test_dance_continuation_rejects_invalid_values(values, message):
+    dance = load_dance_module()
+
+    with pytest.raises(ValueError, match=message):
+        dance.parse_dance_continuation({"danceContinuation": values})
