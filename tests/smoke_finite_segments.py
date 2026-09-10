@@ -133,8 +133,8 @@ def main():
     noises = sorted(by_type["RandomNoise"])
     assert [node[1]["noise_seed"] for node in noises] == [100, 100, 100]
     continuations = sorted(by_type["MiniMaxH3FiniteLatentContinuation"])
-    assert "previous_latent" not in continuations[0][1]
-    assert "previous_latent" in continuations[1][1]
+    assert "previous_clean_output" not in continuations[0][1]
+    assert "previous_clean_output" in continuations[1][1]
     assert all("gradient_temporal_mask" not in item[1] for item in continuations)
     assert all("continuation_mode" not in item[1] for item in continuations)
     assert all(item[1]["trim_audio_head"] is False for item in by_type["MiniMaxH3FiniteSegmentFinalize"])

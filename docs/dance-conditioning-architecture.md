@@ -30,7 +30,7 @@ before H3 sampling.
 ## Continuity-context path
 
 1. `MiniMaxH3FiniteSegmentSampler.execute` retains `sampled.out(0)` under the
-   explicit graph role `previous_latent` after each segment finishes.
+   explicit graph role `previous_clean_output` after each segment finishes.
 2. The next segment's independent source-motion plan is encoded first by
    `MiniMaxH3TimelineEncoder`.
 3. `MiniMaxH3FiniteLatentContinuation.execute` receives the new target latent

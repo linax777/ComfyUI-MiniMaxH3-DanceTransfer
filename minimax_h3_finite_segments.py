@@ -478,7 +478,7 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
                 io.Float.Input("end_strength", default=0.0, min=0.0, max=1.0),
                 io.Model.Input("model"),
                 io.Sigmas.Input("sigmas"),
-                io.Latent.Input("previous_latent", optional=True),
+                io.Latent.Input("previous_clean_output", optional=True),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
@@ -491,7 +491,7 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
     @classmethod
     def execute(
         cls, positive, target_latent, iteration, overlap_frames,
-        continue_audio_latent, model, sigmas, previous_latent=None,
+        continue_audio_latent, model, sigmas, previous_clean_output=None,
         dance_continuation_enabled=False,
         context_frames=24, taper_enabled=False, taper_frames=12,
         start_strength=1.0, end_strength=0.0,
@@ -506,7 +506,7 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
             return io.NodeOutput(positive, target_latent, actual_overlap, model)
         if actual_overlap == 0:
             return io.NodeOutput(positive, target_latent, 0, model)
-        if previous_latent is None:
+        if previous_clean_output is None:
             raise ValueError("Segment 2 and later require the previous sampled latent")
         video_mask_values = None
         if bool(dance_continuation_enabled):
@@ -520,9 +520,9 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
                 rgb_strength,
                 rgb_frames_to_h3_latent_ticks(int(context_frames)),
             )
-        masked_target, details = _apply_linear_temporal_noise_mask(
+        continuity_working_copy, details = _apply_linear_temporal_noise_mask(
             target_latent=target_latent,
-            source_latent=previous_latent,
+            source_latent=previous_clean_output,
             guide_frames=actual_overlap,
             include_audio=bool(continue_audio_latent),
             gradient=False,
@@ -537,9 +537,12 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
                 f"taper_rgb_frames={int(taper_frames) if bool(taper_enabled) else 0}"
             )
         patched_model = install_drift_control_av_model(
-            model, masked_target, sigmas, prefix_steps=details["video_tokens"]
+            model, continuity_working_copy, sigmas,
+            prefix_steps=details["video_tokens"],
         )
-        return io.NodeOutput(positive, masked_target, details["frames"], patched_model)
+        return io.NodeOutput(
+            positive, continuity_working_copy, details["frames"], patched_model
+        )
 
 
 class MiniMaxH3FiniteSegmentFinalize(io.ComfyNode):
@@ -722,7 +725,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
     ):
         finite = _require_finite_plan(finite_plan)
         graph = GraphBuilder()
-        previous_latent = None
+        previous_clean_output = None
         merged_images = None
         merged_audio = None
         last_sampled = None
@@ -759,8 +762,8 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 "end_strength": float(dance_config.get("end_strength", 0.0)),
                 "model": model, "sigmas": sigmas,
             }
-            if previous_latent is not None:
-                continuation_inputs["previous_latent"] = previous_latent
+            if previous_clean_output is not None:
+                continuation_inputs["previous_clean_output"] = previous_clean_output
             continuation = graph.node(
                 "MiniMaxH3FiniteLatentContinuation", id=f"continue_{number}",
                 **continuation_inputs,
@@ -808,7 +811,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                     audio1=previous_audio_for_join, audio2=current_audio, direction="after",
                 )
                 merged_images, merged_audio = image_join.out(0), audio_join.out(0)
-            previous_latent = sampled.out(0)
+            previous_clean_output = sampled.out(0)
             last_sampled = sampled.out(0)
 
         target_output_frames = int(finite.get("target_output_frames") or 0)
