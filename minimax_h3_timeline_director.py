@@ -1,4 +1,4 @@
-"""Backend for the MiniMax H3 Timeline Director node.
+"""Backend for the MiniMax H3 Dance Timeline Director node.
 
 The UI stores an edit decision list (EDL) in ``timeline_data``.  At queue time
 this module resolves the current generation selection into H3 references and
@@ -42,8 +42,10 @@ from comfy_api.latest import io
 from comfy_extras import nodes_minimax_h3 as h3_nodes
 from server import PromptServer
 
+from .dance_namespace import DANCE_CATEGORIES, DANCE_NODE_IDS
 
-log = logging.getLogger("MiniMaxH3TimelineDirector")
+
+log = logging.getLogger("MiniMaxH3DanceTimelineDirector")
 FPS = 24.0
 MAX_REF_IMAGES = 9
 MAX_REF_VIDEOS = 3
@@ -1523,19 +1525,19 @@ def _encode_timeline_plan(
     return conditioning, latent, video_audio_output, standalone_audio_output
 
 
-class MiniMaxH3TimelinePlanner(io.ComfyNode):
+class MiniMaxH3DanceTimelinePlanner(io.ComfyNode):
     """Editable material/guide plan which deliberately performs no H3 encode."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3TimelinePlanner",
-            display_name="MiniMax H3 Material Planner",
+            node_id=DANCE_NODE_IDS["timeline_planner"],
+            display_name="MiniMax H3 Dance Material Planner",
             description=(
                 "Edit a timeline and output a lightweight material plan. The plan may feed a prompt "
                 "rewriter before the rewritten prompt and same plan enter the H3 Plan Encoder, avoiding cycles."
             ),
-            category="model/conditioning/minimax",
+            category=DANCE_CATEGORIES["root"],
             inputs=[
                 io.Int.Input(
                     "prompt_index", display_name="Prompt Index", optional=True,
@@ -1568,7 +1570,7 @@ class MiniMaxH3TimelinePlanner(io.ComfyNode):
         return io.NodeOutput(plan, _create_prompt_media_bundle(plan))
 
 
-class MiniMaxH3OmniPromptBridge(io.ComfyNode):
+class MiniMaxH3DanceOmniPromptBridge(io.ComfyNode):
     """Run Prompt Rewriter Omni directly from the planner's ordered media bundle."""
 
     @classmethod
@@ -1576,13 +1578,13 @@ class MiniMaxH3OmniPromptBridge(io.ComfyNode):
         tasks, models, quantizations = _omni_schema_choices()
         default_task = "REF2AV" if "REF2AV" in tasks else tasks[0]
         return io.Schema(
-            node_id="MiniMaxH3OmniPromptBridge",
-            display_name="MiniMax H3 Omni Media Prompt Bridge",
+            node_id=DANCE_NODE_IDS["omni_prompt_bridge"],
+            display_name="MiniMax H3 Dance Omni Media Prompt Bridge",
             description=(
                 "Read the planner's ordered Omni media bundle and call the MiniMax-H3 Prompt Rewriter "
                 "Omni backend directly, without expanding or wiring individual media ports."
             ),
-            category="MiniMax-H3",
+            category=DANCE_CATEGORIES["root"],
             inputs=[
                 PROMPT_REWRITER_OPTIONS.Input("options", optional=True),
                 PromptMediaBundle.Input("media_bundle"),
@@ -1627,7 +1629,7 @@ class MiniMaxH3OmniPromptBridge(io.ComfyNode):
         warning = _omni_compatibility_warning()
         if warning:
             log.warning(warning)
-            print(f"[MiniMaxH3TimelineDirector] {warning}", flush=True)
+            print(f"[MiniMaxH3DanceTimelineDirector] {warning}", flush=True)
         items = bundle["items"]
         try:
             max_references = int(module.MAX_REFERENCES)
@@ -1690,16 +1692,16 @@ class MiniMaxH3OmniPromptBridge(io.ComfyNode):
         return io.NodeOutput(rewritten)
 
 
-class MiniMaxH3TimelineEncoder(io.ComfyNode):
+class MiniMaxH3DanceTimelineEncoder(io.ComfyNode):
     """Encode a planner result only after an external prompt rewrite completes."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3TimelineEncoder",
-            display_name="MiniMax H3 Plan Encoder",
+            node_id=DANCE_NODE_IDS["timeline_encoder"],
+            display_name="MiniMax H3 Dance Plan Encoder",
             description="Encode a material plan and final H3 prompt into references, native Guides, conditioning, and AV latent.",
-            category="model/conditioning/minimax",
+            category=DANCE_CATEGORIES["root"],
             inputs=[
                 io.Clip.Input("clip"),
                 io.Vae.Input("vae"),
@@ -1730,17 +1732,17 @@ class MiniMaxH3TimelineEncoder(io.ComfyNode):
         return io.NodeOutput(conditioning, latent, video_audio, standalone_audio)
 
 
-class MiniMaxH3TimelineDirector(io.ComfyNode):
+class MiniMaxH3DanceTimelineDirector(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3TimelineDirector",
-            display_name="MiniMax H3 Timeline Director",
+            node_id=DANCE_NODE_IDS["timeline_director"],
+            display_name="MiniMax H3 Dance Timeline Director",
             description=(
                 "Assemble H3 references on an editable timeline. Overlapping video can use native Add Guide, "
                 "editable reference, or boundary-only mode; gaps automatically anchor their boundary frames."
             ),
-            category="model/conditioning/minimax",
+            category=DANCE_CATEGORIES["root"],
             inputs=[
                 io.Clip.Input("clip"),
                 io.Vae.Input("vae"),

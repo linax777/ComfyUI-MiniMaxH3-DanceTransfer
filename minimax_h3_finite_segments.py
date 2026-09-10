@@ -11,6 +11,7 @@ from dataclasses import asdict
 from comfy_api.latest import io
 from comfy_execution.graph_utils import GraphBuilder
 
+from .dance_namespace import DANCE_CATEGORIES, DANCE_NODE_IDS
 from .experimental_latent_guide import (
     _apply_linear_temporal_noise_mask,
     _valid_guide_frames,
@@ -350,15 +351,15 @@ def _require_finite_plan(value):
     return value
 
 
-class MiniMaxH3FiniteSegmentExpansion(io.ComfyNode):
+class MiniMaxH3DanceFiniteSegmentExpansion(io.ComfyNode):
     """Validate prompts/media assignments and produce a reusable finite plan."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteSegmentExpansion",
-            display_name="MiniMax H3 Finite Segment Expansion",
-            category="MiniMax H3/Long Video",
+            node_id=DANCE_NODE_IDS["finite_segment_expansion"],
+            display_name="MiniMax H3 Dance Finite Segment Expansion",
+            category=DANCE_CATEGORIES["long_video"],
             description=(
                 "Parse prompts, validate segment counts, match per-segment media, and build a finite plan. "
                 "This node performs no model loading, scheduling, or sampling."
@@ -409,15 +410,15 @@ class MiniMaxH3FiniteSegmentExpansion(io.ComfyNode):
         return io.NodeOutput(finite, overlap, status)
 
 
-class MiniMaxH3LongReferenceSegmentPlan(io.ComfyNode):
+class MiniMaxH3DanceLongReferenceSegmentPlan(io.ComfyNode):
     """Automatically slice one long reference for a shared prompt."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3LongReferenceSegmentPlan",
-            display_name="MiniMax H3 Long Reference Auto Segmentation",
-            category="MiniMax H3/Long Video",
+            node_id=DANCE_NODE_IDS["long_reference_segment_plan"],
+            display_name="MiniMax H3 Dance Long Reference Auto Segmentation",
+            category=DANCE_CATEGORIES["long_video"],
             description=(
                 "Use the Material Planner generation duration to split long reference media. "
                 "Audio-only plans follow the longest standalone audio; video-plus-audio "
@@ -484,15 +485,15 @@ class MiniMaxH3LongReferenceSegmentPlan(io.ComfyNode):
         )
 
 
-class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
+class MiniMaxH3DanceFiniteLatentContinuation(io.ComfyNode):
     """Internal finite-graph helper that carries the previous AV latent tail."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteLatentContinuation",
-            display_name="MiniMax H3 Finite Latent Continuation (Internal)",
-            category="MiniMax H3/Internal",
+            node_id=DANCE_NODE_IDS["finite_latent_continuation"],
+            display_name="MiniMax H3 Dance Finite Latent Continuation (Internal)",
+            category=DANCE_CATEGORIES["internal"],
             is_dev_only=True,
             inputs=[
                 io.Conditioning.Input("positive"),
@@ -591,15 +592,15 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
         )
 
 
-class MiniMaxH3FiniteSegmentFinalize(io.ComfyNode):
+class MiniMaxH3DanceFiniteSegmentFinalize(io.ComfyNode):
     """Internal finite-graph helper that removes decoded overlap."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteSegmentFinalize",
-            display_name="MiniMax H3 Finite Segment Finalize (Internal)",
-            category="MiniMax H3/Internal",
+            node_id=DANCE_NODE_IDS["finite_segment_finalize"],
+            display_name="MiniMax H3 Dance Finite Segment Finalize (Internal)",
+            category=DANCE_CATEGORIES["internal"],
             is_dev_only=True,
             inputs=[
                 io.Latent.Input("sampled_latent"),
@@ -648,15 +649,15 @@ class MiniMaxH3FiniteSegmentFinalize(io.ComfyNode):
         return io.NodeOutput(sampled_latent, trimmed_images, trimmed_audio)
 
 
-class MiniMaxH3FiniteAudioTrimTail(io.ComfyNode):
+class MiniMaxH3DanceFiniteAudioTrimTail(io.ComfyNode):
     """Internal helper that gives an incoming Soft AV segment seam ownership."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteAudioTrimTail",
-            display_name="MiniMax H3 Finite Audio Tail Trim (Internal)",
-            category="MiniMax H3/Internal",
+            node_id=DANCE_NODE_IDS["finite_audio_trim_tail"],
+            display_name="MiniMax H3 Dance Finite Audio Tail Trim (Internal)",
+            category=DANCE_CATEGORIES["internal"],
             is_dev_only=True,
             inputs=[
                 io.Audio.Input("audio"),
@@ -689,15 +690,15 @@ class MiniMaxH3FiniteAudioTrimTail(io.ComfyNode):
         return io.NodeOutput(output)
 
 
-class MiniMaxH3FiniteOutputTrim(io.ComfyNode):
+class MiniMaxH3DanceFiniteOutputTrim(io.ComfyNode):
     """Trim auto-segment padding back to the longest source-media duration."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteOutputTrim",
-            display_name="MiniMax H3 Finite Output Trim (Internal)",
-            category="MiniMax H3/Internal",
+            node_id=DANCE_NODE_IDS["finite_output_trim"],
+            display_name="MiniMax H3 Dance Finite Output Trim (Internal)",
+            category=DANCE_CATEGORIES["internal"],
             is_dev_only=True,
             inputs=[
                 io.Image.Input("images"),
@@ -730,15 +731,15 @@ class MiniMaxH3FiniteOutputTrim(io.ComfyNode):
         return io.NodeOutput(trimmed_images, trimmed_audio)
 
 
-class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
+class MiniMaxH3DanceFiniteSegmentSampler(io.ComfyNode):
     """Expand a finite plan into a standard acyclic sampling graph."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteSegmentSampler",
-            display_name="MiniMax H3 Finite Segment Sampler",
-            category="MiniMax H3/Long Video",
+            node_id=DANCE_NODE_IDS["finite_segment_sampler"],
+            display_name="MiniMax H3 Dance Finite Segment Sampler",
+            category=DANCE_CATEGORIES["long_video"],
             description=(
                 "Expand a finite plan into a standard acyclic sampling graph. Sampler and scheduler remain "
                 "external; no Loop, Loop Variable, or Close Loop nodes are required."
@@ -791,7 +792,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
         for index, prompt in enumerate(finite["prompts"]):
             number = index + 1
             encoder = graph.node(
-                "MiniMaxH3TimelineEncoder", id=f"encode_{number}",
+                DANCE_NODE_IDS["timeline_encoder"], id=f"encode_{number}",
                 clip=clip, vae=vae, audio_vae=audio_vae,
                 plan=_finite_plan_for_segment(finite, number),
                 prompt=prompt, ref_image_size=ref_image_size,
@@ -821,7 +822,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
             if previous_clean_output is not None:
                 continuation_inputs["previous_clean_output"] = previous_clean_output
             continuation = graph.node(
-                "MiniMaxH3FiniteLatentContinuation", id=f"continue_{number}",
+                DANCE_NODE_IDS["finite_latent_continuation"], id=f"continue_{number}",
                 **continuation_inputs,
             )
             noise = graph.node("RandomNoise", id=f"noise_{number}", noise_seed=int(seed))
@@ -841,7 +842,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 "VAEDecodeAudio", id=f"decode_audio_{number}", samples=sampled.out(0), vae=audio_vae,
             )
             finalized = graph.node(
-                "MiniMaxH3FiniteSegmentFinalize", id=f"finalize_{number}",
+                DANCE_NODE_IDS["finite_segment_finalize"], id=f"finalize_{number}",
                 sampled_latent=sampled.out(0), images=images.out(0), audio=audio.out(0),
                 iteration=index, overlap_frames=output_overlap,
                 trim_audio_head=not soft_audio,
@@ -858,7 +859,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 previous_audio_for_join = merged_audio
                 if soft_audio:
                     previous_audio_for_join = graph.node(
-                        "MiniMaxH3FiniteAudioTrimTail", id=f"trim_audio_tail_{number}",
+                        DANCE_NODE_IDS["finite_audio_trim_tail"], id=f"trim_audio_tail_{number}",
                         audio=merged_audio, overlap_frames=output_overlap,
                         exact_overlap_frames=dance_enabled,
                     ).out(0)
@@ -873,7 +874,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
         target_output_frames = int(finite.get("target_output_frames") or 0)
         if target_output_frames > 0:
             output_trim = graph.node(
-                "MiniMaxH3FiniteOutputTrim", id="trim_auto_segment_output",
+                DANCE_NODE_IDS["finite_output_trim"], id="trim_auto_segment_output",
                 images=merged_images, audio=merged_audio,
                 output_frames=target_output_frames,
             )

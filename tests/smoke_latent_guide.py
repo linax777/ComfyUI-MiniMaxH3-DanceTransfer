@@ -39,14 +39,17 @@ def _latent(video_tokens: int, marker: float = 0.0):
 def main():
     plugin_dir = Path(__file__).resolve().parents[1]
     experiment = _load_module(plugin_dir)
-    experiment.MiniMaxH3AddLatentGuide.define_schema()
-    experiment.MiniMaxH3VisualDifferenceMetrics.define_schema()
+    package = sys.modules[experiment.__package__]
+    namespace = sys.modules[f"{experiment.__package__}.dance_namespace"]
+    assert set(package.NODE_CLASS_MAPPINGS).isdisjoint(namespace.UPSTREAM_OWNED_NODE_IDS)
+    experiment.MiniMaxH3DanceAddLatentGuide.define_schema()
+    experiment.MiniMaxH3DanceVisualDifferenceMetrics.define_schema()
 
     # 124 source frames = 37 H3 video tokens; 22 guide frames = 7 tokens.
     source, source_video = _latent(37, marker=100.0)
     target, _ = _latent(37)
     positive = [[torch.zeros((1, 1, 1)), {}]]
-    output = experiment.MiniMaxH3AddLatentGuide.execute(
+    output = experiment.MiniMaxH3DanceAddLatentGuide.execute(
         positive, target, source, guide_frames=24, frame_idx=0
     )
     conditioned, report = output[0], output[1]
@@ -105,7 +108,7 @@ def main():
 
     ref = torch.zeros((2, 8, 8, 3), dtype=torch.float32)
     cmp = torch.full_like(ref, 0.1)
-    metrics = experiment.MiniMaxH3VisualDifferenceMetrics.execute(ref, cmp, 4.0)
+    metrics = experiment.MiniMaxH3DanceVisualDifferenceMetrics.execute(ref, cmp, 4.0)
     assert "MAE=0.100000" in metrics[0]
     assert torch.allclose(metrics[1], torch.full_like(ref, 0.4))
     print("latent guide smoke test: PASS")

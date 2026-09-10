@@ -9,6 +9,12 @@ PROJECT_ROOT = Path(
     os.environ.get("DANCE_PROJECT_ROOT", Path(__file__).resolve().parents[1])
 )
 MODULE_PATH = PROJECT_ROOT / "dance_namespace.py"
+RUNTIME_PATHS = {
+    "registration": PROJECT_ROOT / "__init__.py",
+    "timeline": PROJECT_ROOT / "minimax_h3_timeline_director.py",
+    "finite_segments": PROJECT_ROOT / "minimax_h3_finite_segments.py",
+    "latent_guide": PROJECT_ROOT / "experimental_latent_guide.py",
+}
 
 EXPECTED = {
     "timeline_director": "MiniMaxH3DanceTimelineDirector",
@@ -52,3 +58,25 @@ def test_dance_categories_are_exact():
         "experimental": "MiniMax H3 Dance/Experimental",
         "internal": "MiniMax H3 Dance/Internal",
     }
+
+
+def test_runtime_sources_expose_only_dance_owned_node_ids():
+    """Catch an upstream-ID registration that would collide at ComfyUI load time."""
+    namespace = load_namespace()
+    sources = {
+        name: path.read_text(encoding="utf-8") for name, path in RUNTIME_PATHS.items()
+    }
+
+    for source in sources.values():
+        for old_node_id in namespace.UPSTREAM_OWNED_NODE_IDS:
+            assert f'"{old_node_id}"' not in source
+
+    registration_source = sources["registration"]
+    for node_key in EXPECTED:
+        assert f'DANCE_NODE_IDS["{node_key}"]' in registration_source
+    for old_node_id in namespace.UPSTREAM_OWNED_NODE_IDS:
+        assert old_node_id not in registration_source
+
+    timeline_source = sources["timeline"]
+    assert '"MiniMaxH3AddGuide"' in timeline_source
+    assert "MiniMaxH3SigmaShift" not in namespace.UPSTREAM_OWNED_NODE_IDS

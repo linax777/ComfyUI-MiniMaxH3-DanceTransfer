@@ -16,6 +16,7 @@ from comfy.nested_tensor import NestedTensor
 from comfy_api.latest import io
 
 from .dance_continuation import apply_deterministic_context_noise
+from .dance_namespace import DANCE_CATEGORIES, DANCE_NODE_IDS
 
 
 def _h3_streams(latent, label):
@@ -241,15 +242,15 @@ def _apply_linear_temporal_noise_mask(
     }
 
 
-class MiniMaxH3AddLatentGuide(io.ComfyNode):
+class MiniMaxH3DanceAddLatentGuide(io.ComfyNode):
     """Anchor a sampled H3 latent tail without an RGB decode/encode round trip."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3AddLatentGuide",
-            display_name="MiniMax H3 Direct Latent Guide (Experimental)",
-            category="MiniMax H3/Experimental",
+            node_id=DANCE_NODE_IDS["add_latent_guide"],
+            display_name="MiniMax H3 Dance Direct Latent Guide (Experimental)",
+            category=DANCE_CATEGORIES["experimental"],
             description=(
                 "Copy a valid temporal block from the tail of a sampled MiniMax H3 AV latent "
                 "directly into another target latent for RGB/VAE round-trip A/B testing."
@@ -302,15 +303,15 @@ class MiniMaxH3AddLatentGuide(io.ComfyNode):
         return io.NodeOutput(conditioned, report)
 
 
-class MiniMaxH3VisualDifferenceMetrics(io.ComfyNode):
+class MiniMaxH3DanceVisualDifferenceMetrics(io.ComfyNode):
     """Report lightweight objective differences between two decoded videos."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3VisualDifferenceMetrics",
-            display_name="MiniMax H3 Video Difference Metrics (Experimental)",
-            category="MiniMax H3/Experimental",
+            node_id=DANCE_NODE_IDS["visual_difference_metrics"],
+            display_name="MiniMax H3 Dance Video Difference Metrics (Experimental)",
+            category=DANCE_CATEGORIES["experimental"],
             description="Compare two RGB frame batches and report MAE, MSE, PSNR, means, saturation, and amplified differences.",
             inputs=[
                 io.Image.Input("reference"),
