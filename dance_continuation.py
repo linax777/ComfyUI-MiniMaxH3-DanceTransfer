@@ -44,6 +44,14 @@ class DanceContinuationConfig:
             raise ValueError("end_strength must be in [0, 1]")
 
 
+@dataclass(frozen=True)
+class DanceContextTiming:
+    source_overlap_frames: int
+    output_trim_frames: int
+    aligned_context_frames: int
+    context_latent_ticks: int
+
+
 def parse_dance_continuation(timeline: object) -> DanceContinuationConfig:
     """Parse version-tolerant dance configuration from timeline JSON."""
 
@@ -88,6 +96,24 @@ def rgb_frames_to_h3_latent_ticks(requested_frames: int) -> int:
     if aligned <= 0:
         return 0
     return 2 if aligned <= 5 else ((aligned - 5) // 17) * 5 + 2
+
+
+def resolve_context_timing(
+    config: DanceContinuationConfig, legacy_requested_overlap: int
+) -> DanceContextTiming:
+    """Resolve exact RGB timing separately from H3 latent alignment."""
+
+    requested = (
+        config.context_frames if config.enabled else int(legacy_requested_overlap)
+    )
+    aligned = align_h3_context_frames(requested)
+    source_overlap = requested if config.enabled else aligned
+    return DanceContextTiming(
+        source_overlap_frames=source_overlap,
+        output_trim_frames=source_overlap,
+        aligned_context_frames=aligned,
+        context_latent_ticks=rgb_frames_to_h3_latent_ticks(requested),
+    )
 
 
 def format_dance_segment_debug(segment: DanceSegmentDebug) -> str:

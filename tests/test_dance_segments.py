@@ -216,3 +216,27 @@ def test_mutating_continuation_copy_never_changes_clean_output():
     continuity_working_copy.zero_()
 
     assert torch.equal(previous_clean_output, original)
+
+
+def test_enabled_dance_timing_keeps_requested_rgb_and_aligned_latent_separate():
+    dance = load_dance_module()
+    config = dance.DanceContinuationConfig(enabled=True, context_frames=24)
+
+    timing = dance.resolve_context_timing(config, legacy_requested_overlap=48)
+
+    assert timing.source_overlap_frames == 24
+    assert timing.output_trim_frames == 24
+    assert timing.aligned_context_frames == 22
+    assert timing.context_latent_ticks == 7
+
+
+def test_disabled_dance_timing_reproduces_legacy_overlap_alignment():
+    dance = load_dance_module()
+    config = dance.DanceContinuationConfig(enabled=False)
+
+    timing = dance.resolve_context_timing(config, legacy_requested_overlap=48)
+
+    assert timing.source_overlap_frames == 39
+    assert timing.output_trim_frames == 39
+    assert timing.aligned_context_frames == 39
+    assert timing.context_latent_ticks == 12
