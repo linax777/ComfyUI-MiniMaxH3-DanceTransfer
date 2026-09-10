@@ -42,6 +42,23 @@ A candidate passes only when motion is not materially worse than the baseline,
 the seam improves or remains equal, identity/background stability improves,
 and later segments continue following the original source choreography.
 
+## Optional keypoint metrics
+
+Pose extraction remains external and optional. Export source and generated
+keypoints to JSON, then run:
+
+```bash
+python tools/evaluate_motion.py source_keypoints.json generated_keypoints.json \
+  --output motion_report.json
+```
+
+Each JSON object needs `width`, `height`, optional `fps`, and a `frames` array.
+Each frame maps names such as `left_wrist`, `right_wrist`, `left_ankle`,
+`right_ankle`, `hip_center`, `shoulder_center`, and `body_bbox_center` to
+`[x, y]` or `[x, y, confidence]`. The report normalizes image coordinates and
+contains mean joint error, acceleration error, missing-keypoint rates, and the
+best trajectory timing offset. This evaluator is never imported by ComfyUI.
+
 ## VRAM profile record
 
 No production-resolution VRAM figures are recorded yet because this repository
