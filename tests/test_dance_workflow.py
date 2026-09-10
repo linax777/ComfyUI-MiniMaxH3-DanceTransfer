@@ -20,9 +20,9 @@ def test_dance_benchmark_is_a_connected_long_reference_workflow():
     node_types = {node["type"] for node in workflow["nodes"]}
 
     assert {
-        "MiniMaxH3TimelinePlanner",
-        "MiniMaxH3LongReferenceSegmentPlan",
-        "MiniMaxH3FiniteSegmentSampler",
+        "MiniMaxH3DanceTimelinePlanner",
+        "MiniMaxH3DanceLongReferenceSegmentPlan",
+        "MiniMaxH3DanceFiniteSegmentSampler",
         "CreateVideo",
         "SaveVideo",
     } <= node_types
@@ -33,7 +33,7 @@ def test_dance_benchmark_exposes_single_variable_ab_controls_without_pose_depth(
     workflow = load_workflow()
     planner = next(
         node for node in workflow["nodes"]
-        if node["type"] == "MiniMaxH3TimelinePlanner"
+        if node["type"] == "MiniMaxH3DanceTimelinePlanner"
     )
     timeline = json.loads(planner["widgets_values_named"]["timeline_data"])
     continuation = timeline["danceContinuation"]

@@ -265,7 +265,7 @@
           0
         ]
       },
-      "class_type": "MiniMaxH3AddLatentGuide",
+      "class_type": "MiniMaxH3DanceAddLatentGuide",
       "_meta": {
         "title": "B��ֱ�Ӹ���β��latent Guide"
       }
@@ -503,7 +503,7 @@
         ],
         "difference_gain": 8.0
       },
-      "class_type": "MiniMaxH3VisualDifferenceMetrics",
+      "class_type": "MiniMaxH3DanceVisualDifferenceMetrics",
       "_meta": {
         "title": "A/B���β���"
       }
@@ -533,7 +533,7 @@
         ],
         "difference_gain": 8.0
       },
-      "class_type": "MiniMaxH3VisualDifferenceMetrics",
+      "class_type": "MiniMaxH3DanceVisualDifferenceMetrics",
       "_meta": {
         "title": "A�̶������Դβ��"
       }
@@ -563,7 +563,7 @@
         ],
         "difference_gain": 8.0
       },
-      "class_type": "MiniMaxH3VisualDifferenceMetrics",
+      "class_type": "MiniMaxH3DanceVisualDifferenceMetrics",
       "_meta": {
         "title": "B�̶������Դβ��"
       }
@@ -657,7 +657,7 @@
         ],
         "difference_gain": 8.0
       },
-      "class_type": "MiniMaxH3VisualDifferenceMetrics",
+      "class_type": "MiniMaxH3DanceVisualDifferenceMetrics",
       "_meta": {
         "title": "����VAE����ɫ��"
       }

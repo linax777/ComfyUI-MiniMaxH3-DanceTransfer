@@ -736,7 +736,7 @@
     },
     {
       "id": 203,
-      "type": "MiniMaxH3TimelineEncoder",
+      "type": "MiniMaxH3DanceTimelineEncoder",
       "pos": [
         -764.7449365178255,
         5130.842342355562
@@ -805,9 +805,9 @@
         }
       ],
       "properties": {
-        "aux_id": "Songssx/ComfyUI-MiniMaxH3-TimelineDirector",
+        "aux_id": "linax777/ComfyUI-MiniMaxH3-DanceTransfer",
         "ver": "bad313e7e1a7eb300a23aac9f094da63fb536430",
-        "Node name for S&R": "MiniMaxH3TimelineEncoder"
+        "Node name for S&R": "MiniMaxH3DanceTimelineEncoder"
       },
       "widgets_values": [
         "subject_definitions:\n<Subject 1> is the anthropomorphic pig character from <Picture 1>. He has pale pink skin covered with short fine bristles, a broad round face, a large pink snout, drooping pig ears, expressive brown eyes, sparse light-brown hair, and a slightly stocky humanoid body. He wears a faded grey hoodie beneath a weathered brown jacket, loose dark-grey trousers, worn beige sneakers, and a brown cross-body satchel. Preserve his exact facial identity, animal anatomy, body proportions, clothing layers, colors, footwear, satchel, and stylized cinematic 3D appearance in every shot and from every angle.\n<Subject 2> is the complete runway performance of the original female protagonist in <Video 1>, including her walking cycle, stride length, foot placement, arm swing, posture, head direction, body orientation, timing, screen position, and transitions between camera angles.\n<Video 1> is the source video for the target video edit. Its complete selected 7.08-second timeline, four-shot structure, runway environment, audience, lighting, camera movement, framing, shot-size changes, focus, pacing, reflections, and editing rhythm must remain unchanged.\n\nsummary:\n[video editing + reference generation] The target video is an edited version of the selected 0.00–7.08-second segment of <Video 1>. Replace only the original female protagonist with <Subject 1>, including her entire head, face, hair, neck, torso, arms, hands, legs, feet, clothing, and accessories. Transfer the original runway performance from <Subject 2> to <Subject 1> one-to-one. Preserve every other element of <Video 1> exactly, including all camera movements, cuts, shot sizes, runway geometry, spectators, flashes, stage lights, reflections, and timing.\n\nretention_analysis:\n<Subject 1> (appears throughout [Shot 1] to [Shot 4]): fully_preserved - retain the pig’s recognizable face, snout, ears, bristles, stocky proportions, grey hoodie, weathered brown jacket, dark trousers, worn sneakers, and brown cross-body satchel from <Picture 1>.\n<Subject 2> (appears throughout [Shot 1] to [Shot 4]): attribute_transfer - transfer the source protagonist’s complete walking performance, pose sequence, timing, foot contacts, arm motion, head direction, and screen trajectory to <Subject 1>, while completely removing the original protagonist’s identity, body, hair, dress, tights, boots, and accessories.\n<Video 1> (complete selected segment): partially_preserved - preserve the complete four-shot structure, cuts, camera movement, shot-size transitions, runway, audience, lighting, focus, reflections, and pacing; change only the main protagonist.\n\ndetailed_description:\nThe target is a precise character-replacement edit lasting exactly 7.08 seconds. Preserve <Video 1>’s cinematic fashion-runway style, 16:9 composition, frame rate, color grading, contrast, depth of field, and temporal rhythm. Do not redesign, reinterpret, extend, shorten, or reorder the source footage.\n\n[Shot 1] Reproduce the exact opening full-body frontal runway shot from <Video 1>. Completely replace the original woman with <Subject 1>. The pig walks directly toward the camera along the glossy black catwalk, matching the original protagonist’s exact starting position, walking speed, stride rhythm, footfalls, upright posture, arm swing, head direction, and screen trajectory. Keep the runway’s bright white edge lights, vertical light panels, overhead spotlights, seated audience, camera flashes, floor reflections, and frontal camera movement unchanged. Scale the pig uniformly to occupy the original protagonist’s approximate on-screen height without stretching his stocky proportions. His jacket, hoodie, trousers, ears, short hair, and satchel produce restrained secondary motion corresponding to each step.\n\n[Shot 2] At 00:02.500, preserve the exact cut to the low-angle close-up of the protagonist’s lower body. Show <Subject 1>’s dark-grey trouser legs and worn beige sneakers replacing the original dress hem, tights, and platform boots. His feet reproduce the original crossing runway steps frame by frame, with identical heel-to-toe contacts, stride length, timing, direction, and position on the reflective floor. Retain the ground-level lateral tracking movement, audience placement, flash photography, runway reflections, focus depth, and motion blur exactly. The lower edge of his jacket and satchel may swing naturally into frame but must not obscure the original leg choreography.\n\n[Shot 3] At 00:04.375, preserve the exact cut to the side-profile medium shot. <Subject 1> continues walking in the same direction and at the same speed as the original protagonist. Match the source torso position, shoulder movement, arm swing, gaze direction, and profile trajectory. Clearly preserve his protruding snout, drooping ear, short bristles, grey hood, weathered jacket, and diagonal satchel strap from the side. Retain the camera’s parallel tracking movement, audience background, phone flashes, stage lighting, shallow depth of field, and composition without alteration.\n\n[Shot 4] At 00:06.333, preserve the exact cut to the frontal three-quarter medium shot and the following shot-size change from <Video 1>. <Subject 1> maintains the original walk, posture, facial direction, hand movement, and runway position. Match the source camera’s movement and its transition toward the wider final composition exactly. End at 00:07.080 on the same framing, runway position, lighting state, audience arrangement, and motion phase as the selected source segment.\n\nThroughout all shots, remove every visible fragment of the original woman. Do not retain her face, red-and-black hair, feminine body silhouette, black dress, belt, tights, boots, hands, or shadow. Do not create a hybrid human-pig face or place the pig’s head on the original body. Replace the complete character silhouette, clothing, limbs, footwear, accessories, reflections, and cast shadow. Maintain one stable pig identity with no face drift, costume changes, duplicated ears, extra limbs, extra fingers, deformation, flicker, or scale jumps.\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A",
@@ -865,7 +865,7 @@
     },
     {
       "id": 200,
-      "type": "MiniMaxH3TimelinePlanner",
+      "type": "MiniMaxH3DanceTimelinePlanner",
       "pos": [
         -981.7106111528464,
         5603.505284975321
@@ -912,9 +912,9 @@
         }
       ],
       "properties": {
-        "aux_id": "Songssx/ComfyUI-MiniMaxH3-TimelineDirector",
+        "aux_id": "linax777/ComfyUI-MiniMaxH3-DanceTransfer",
         "ver": "bad313e7e1a7eb300a23aac9f094da63fb536430",
-        "Node name for S&R": "MiniMaxH3TimelinePlanner"
+        "Node name for S&R": "MiniMaxH3DanceTimelinePlanner"
       },
       "widgets_values": [
         1344,
@@ -933,7 +933,7 @@
     },
     {
       "id": 202,
-      "type": "MiniMaxH3OmniPromptBridge",
+      "type": "MiniMaxH3DanceOmniPromptBridge",
       "pos": [
         48.67508289388225,
         5625.198811666561
@@ -968,9 +968,9 @@
         }
       ],
       "properties": {
-        "aux_id": "Songssx/ComfyUI-MiniMaxH3-TimelineDirector",
+        "aux_id": "linax777/ComfyUI-MiniMaxH3-DanceTransfer",
         "ver": "bad313e7e1a7eb300a23aac9f094da63fb536430",
-        "Node name for S&R": "MiniMaxH3OmniPromptBridge"
+        "Node name for S&R": "MiniMaxH3DanceOmniPromptBridge"
       },
       "widgets_values": [
         "REF2AV",

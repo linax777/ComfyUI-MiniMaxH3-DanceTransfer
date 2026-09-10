@@ -827,7 +827,7 @@
     },
     {
       "id": 213,
-      "type": "MiniMaxH3TimelineDirector",
+      "type": "MiniMaxH3DanceTimelineDirector",
       "pos": [
         -977.5555817882071,
         5617.937013349747
@@ -899,9 +899,9 @@
         }
       ],
       "properties": {
-        "aux_id": "Songssx/ComfyUI-MiniMaxH3-TimelineDirector",
+        "aux_id": "linax777/ComfyUI-MiniMaxH3-DanceTransfer",
         "ver": "bad313e7e1a7eb300a23aac9f094da63fb536430",
-        "Node name for S&R": "MiniMaxH3TimelineDirector"
+        "Node name for S&R": "MiniMaxH3DanceTimelineDirector"
       },
       "widgets_values": [
         "",

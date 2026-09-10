@@ -2,7 +2,7 @@ import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 import { normalizeDanceContinuation } from "./dance_continuation_state.mjs";
 
-const TIMELINE_NODE_NAMES = new Set(["MiniMaxH3TimelinePlanner", "MiniMaxH3TimelineDirector"]);
+const TIMELINE_NODE_NAMES = new Set(["MiniMaxH3DanceTimelinePlanner", "MiniMaxH3DanceTimelineDirector"]);
 const STYLE_ID = "m3td-style";
 const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 const UPLOAD_SUBFOLDER = "minimax_h3_timeline_director";
@@ -60,9 +60,9 @@ async function ensureTimelineLocale() {
       const response = await api.fetchApi("/i18n");
       if (!response.ok) return;
       const translations = await response.json();
-      const messages = translations?.[activeLocale()]?.MiniMaxH3TimelineDirector?.timeline;
+      const messages = translations?.[activeLocale()]?.MiniMaxH3DanceTimelineDirector?.timeline;
       if (messages && typeof messages === "object") timelineMessages = { ...TIMELINE_EN, ...messages };
-    } catch (error) { console.warn("[MiniMaxH3TimelineDirector] Unable to load localization", error); }
+    } catch (error) { console.warn("[MiniMaxH3DanceTimelineDirector] Unable to load localization", error); }
   })();
   return timelineLocalePromise;
 }
@@ -876,7 +876,7 @@ class TimelineDirectorUI {
       this.setStatus(tr("proxyReady",{name:clip.name}));
       return clip.proxy;
     })().catch(error => {
-      console.error("[MiniMaxH3TimelineDirector] preview proxy", error);
+      console.error("[MiniMaxH3DanceTimelineDirector] preview proxy", error);
       this.previewEmpty.textContent = tr("proxyFailed",{error:error.message});
       this.setStatus(tr("previewFailed",{error:error.message}));
       throw error;
@@ -1368,7 +1368,7 @@ class TimelineDirectorUI {
       }else if(kind==="image")this.state.images.push({id:uid(),file:info.filename,name:file.name,width:info.width||0,height:info.height||0});
       else { if(!info.hasAudio)throw new Error(tr("noAudioTrack")); this.state.audios.push({id:uid(),file:info.filename,name:file.name,duration:info.duration||0,trimStart:0}); }
       this.sync();this.render();this.setStatus(tr("addedFile",{name:file.name}),1);
-    }catch(error){console.error("[MiniMaxH3TimelineDirector]",error);this.setStatus(tr("failed",{error:error.message}),0);}
+    }catch(error){console.error("[MiniMaxH3DanceTimelineDirector]",error);this.setStatus(tr("failed",{error:error.message}),0);}
     finally{this.uploading=false;setTimeout(()=>{this.progress.style.width="0";},800);}
   }
 
@@ -1389,7 +1389,7 @@ class TimelineDirectorUI {
 app.registerExtension({
   name: "MiniMaxH3.TimelineDirector",
   async beforeRegisterNodeDef(nodeType,nodeData) {
-    if(nodeData.name==="MiniMaxH3LongReferenceSegmentPlan"){
+    if(nodeData.name==="MiniMaxH3DanceLongReferenceSegmentPlan"){
       const originalConfigure=nodeType.prototype.onConfigure;
       nodeType.prototype.onConfigure=function(info){
         const result=originalConfigure?.apply(this,arguments);
@@ -1411,7 +1411,7 @@ app.registerExtension({
       };
       return;
     }
-    if(nodeData.name==="MiniMaxH3FiniteSegmentSampler"){
+    if(nodeData.name==="MiniMaxH3DanceFiniteSegmentSampler"){
       const originalConfigure=nodeType.prototype.onConfigure;
       nodeType.prototype.onConfigure=function(info){
         const result=originalConfigure?.apply(this,arguments);
@@ -1466,7 +1466,7 @@ app.registerExtension({
       const directorWidget=this.addDOMWidget("minimax_h3_timeline","div",root,{serialize:false,hideOnZoom:false});
       requestAnimationFrame(()=>root.parentElement?.classList.add("m3td-widget-host"));
       directorWidget.computeSize=width=>[Math.max(100,(this.size?.[0]||width||860)-20),directorWidget.__m3tdHeight||DIRECTOR_HEIGHT];
-      const brand=tr(nodeData.name==="MiniMaxH3TimelinePlanner"?"brandPlanner":"brandDirector");
+      const brand=tr(nodeData.name==="MiniMaxH3DanceTimelinePlanner"?"brandPlanner":"brandDirector");
       this.__m3td=new TimelineDirectorUI(this,root,timelineWidget,brand);
       this.__m3td.directorWidget=directorWidget;
       // The Vue DOM widget can mount one or more frames after onNodeCreated.
