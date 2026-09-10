@@ -1387,7 +1387,7 @@ class TimelineDirectorUI {
 }
 
 app.registerExtension({
-  name: "MiniMaxH3.TimelineDirector",
+  name: "MiniMaxH3Dance.TimelineDirector",
   async beforeRegisterNodeDef(nodeType,nodeData) {
     if(nodeData.name==="MiniMaxH3DanceLongReferenceSegmentPlan"){
       const originalConfigure=nodeType.prototype.onConfigure;

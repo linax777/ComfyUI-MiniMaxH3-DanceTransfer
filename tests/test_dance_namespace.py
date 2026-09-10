@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 
 
 PROJECT_ROOT = Path(
@@ -148,3 +149,15 @@ def test_frontend_locales_and_serialized_artifacts_use_dance_node_namespace():
     assert artifact_node_ids.isdisjoint(namespace.UPSTREAM_OWNED_NODE_IDS)
     assert "MiniMaxH3AddGuide" in artifact_node_ids
     assert artifact_aux_ids == {"linax777/ComfyUI-MiniMaxH3-DanceTransfer"}
+
+
+def test_frontend_registers_a_dance_specific_extension_name():
+    """Catch a ComfyUI frontend hook registration collision with upstream."""
+    javascript = JAVASCRIPT_PATH.read_text(encoding="utf-8")
+    registration = re.search(
+        r'app\.registerExtension\(\{\s*name:\s*"([^"]+)"', javascript
+    )
+
+    assert registration is not None
+    assert registration.group(1) == "MiniMaxH3Dance.TimelineDirector"
+    assert registration.group(1) != "MiniMaxH3.TimelineDirector"
