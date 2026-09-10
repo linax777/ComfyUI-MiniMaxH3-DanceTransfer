@@ -258,6 +258,30 @@ def main():
         for item in editable_plan["segment_plans"]
     )
 
+    for source_mode in ("edit", "guide"):
+        dance_source = _long_reference_plan()
+        dance_source["timeline"]["videoClips"][0]["referenceMode"] = source_mode
+        dance_source["timeline"]["danceContinuation"] = {
+            "enabled": True,
+            "contextFrames": 24,
+            "taperEnabled": True,
+            "taperFrames": 12,
+            "startStrength": 1.0,
+            "endStrength": 0.0,
+        }
+        dance_plan = finite.MiniMaxH3LongReferenceSegmentPlan.execute(
+            plan=dance_source, prompt=shared_prompt,
+            overlap_frames=48, slice_reference_audio=True,
+        )[0]
+        assert dance_plan["reference_mode"] == source_mode
+        assert dance_plan["source_overlap_frames"] == 24
+        assert dance_plan["output_overlap_frames"] == 24
+        assert dance_plan["overlap_frames"] == 22
+        assert all(
+            item["timeline"]["videoClips"][0]["referenceMode"] == source_mode
+            for item in dance_plan["segment_plans"]
+        )
+
     short_source = _long_reference_plan()
     short_source["generation_seconds"] = 5.0
     short_source["length"] = 124

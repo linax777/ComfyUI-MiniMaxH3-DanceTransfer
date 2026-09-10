@@ -70,3 +70,18 @@ The previous tail never replaces the next segment's `source_plan`, source clip,
 
 Ambiguous names such as `video`, `guide`, `previous`, and `context` should not
 cross these role boundaries without a qualifying prefix.
+
+## Character-replacement A/B matrix
+
+Dance continuation is orthogonal to the existing source-video mode. Enabling
+it never promotes an Editable Reference to Fixed Guide.
+
+| Source RGB mode | Continuation | Intended comparison |
+| --- | --- | --- |
+| Editable Reference | Off | Maximum character/background replacement freedom |
+| Editable Reference | 24 RGB frames | Replacement freedom plus generated-tail continuity |
+| Fixed Guide | Off | Maximum native source-motion adherence |
+| Fixed Guide | 24 RGB frames | Strong source-motion adherence plus generated-tail continuity |
+
+Only one column should change between benchmark runs. The selected source mode
+continues through every automatically-created segment plan unchanged.
