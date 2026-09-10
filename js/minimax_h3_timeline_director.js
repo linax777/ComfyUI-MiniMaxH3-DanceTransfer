@@ -1,5 +1,6 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
+import { normalizeDanceContinuation } from "./dance_continuation_state.mjs";
 
 const TIMELINE_NODE_NAMES = new Set(["MiniMaxH3TimelinePlanner", "MiniMaxH3TimelineDirector"]);
 const STYLE_ID = "m3td-style";
@@ -12,6 +13,7 @@ const TIMELINE_EN = {
   addVideo: "＋ Video", addImage: "＋ Image", addAudio: "＋ Audio", splitAtPlayhead: "✂ Split at Playhead", deleteClip: "Delete Clip", ready: "Ready",
   selectionStart: "Selection start", referenceDuration: "Reference duration", zoom: "Zoom", fitAll: "Fit all", matchNearestGap: "Match nearest gap",
   materialSegments: "Material segments", updateSegments: "Update segments", timelineHelp: "Drag clips/playhead · Edge snapping · Selection duration = generation duration",
+  danceContinuation: "Dance Continuation", enable: "Enable", contextFrames: "Context frames", taper: "Taper", taperFrames: "Taper frames", startStrength: "Start strength", endStrength: "End strength",
   referenceVideo: "Reference video", videoAudio: "Video audio", off: "Off", on: "On", noClipSelected: "No clip selected",
   previewEmpty: "Move the red playhead over a video clip to preview that position", previewTitle: "Low-resolution monitor · up to 480×270 / 12 fps",
   noPreviewVideo: "No video is available for preview", playPreview: "▶ Play preview", pausePreview: "❚❚ Pause preview",
@@ -93,6 +95,9 @@ function installStyles() {
     .m3td-spacer { flex:1; }
     .m3td-status { color:var(--muted); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .m3td-settings { display:flex; align-items:center; gap:8px 12px; padding:7px 10px; border-bottom:1px solid var(--line); background:#151a22; flex-wrap:wrap; }
+    .m3td-dance { display:flex; align-items:center; gap:8px 12px; padding:6px 10px; border-bottom:1px solid var(--line); background:#101923; flex-wrap:wrap; }
+    .m3td-dance > strong { color:#9fe8e2; }
+    .m3td-dance input[type="checkbox"] { width:auto; }
     .m3td-field { display:flex; flex:0 0 auto; align-items:center; gap:5px; color:var(--muted); white-space:nowrap; }
     .m3td-field input,.m3td-field select { width:72px; height:25px; padding:2px 5px; color:var(--text); background:#0d1118;
       border:1px solid #333d50; border-radius:4px; outline:none; user-select:text; }
@@ -270,7 +275,7 @@ function forwardWheelEvent(event, canvas) {
 }
 
 function emptyState() {
-  return { version: 4, fps: 24, selection: { start: 0, duration: 5 }, videoAudioEnabled: true, videoClips: [], images: [], audios: [], segmentConfig:{count:0,segments:[]} };
+  return { version: 5, fps: 24, selection: { start: 0, duration: 5 }, videoAudioEnabled: true, videoClips: [], images: [], audios: [], segmentConfig:{count:0,segments:[]}, danceContinuation:normalizeDanceContinuation() };
 }
 
 function normalizedAssetIds(values, validIds) {
@@ -298,6 +303,7 @@ function normalizeState(raw) {
   })) : [];
   base.images = Array.isArray(raw.images) ? raw.images.filter(x => x?.file).slice(0, 9).map(a => ({ id:a.id || uid(), ...a })) : [];
   base.audios = Array.isArray(raw.audios) ? raw.audios.filter(x => x?.file).slice(0, 3).map(a => ({ id:a.id || uid(), ...a })) : [];
+  base.danceContinuation = normalizeDanceContinuation(raw.danceContinuation);
   const imageIds=new Set(base.images.map(a=>String(a.id))),audioIds=new Set(base.audios.map(a=>String(a.id)));
   const rawConfig=raw.segmentConfig&&typeof raw.segmentConfig==="object"?raw.segmentConfig:{};
   const count=clamp(Math.floor(num(rawConfig.count,0)),0,64);
@@ -508,6 +514,15 @@ class TimelineDirectorUI {
         <button class="m3td-btn" data-action="applySegments">${esc(tr("updateSegments"))}</button>
         <span class="m3td-help">${esc(tr("timelineHelp"))}</span>
       </div>
+      <div class="m3td-dance">
+        <strong>${esc(tr("danceContinuation"))}</strong>
+        <label class="m3td-field"><input data-dance="enabled" type="checkbox"> ${esc(tr("enable"))}</label>
+        <label class="m3td-field">${esc(tr("contextFrames"))} <input data-dance="contextFrames" type="number" min="0" max="362" step="1"></label>
+        <label class="m3td-field"><input data-dance="taperEnabled" type="checkbox"> ${esc(tr("taper"))}</label>
+        <label class="m3td-field">${esc(tr("taperFrames"))} <input data-dance="taperFrames" type="number" min="0" max="362" step="1"></label>
+        <label class="m3td-field">${esc(tr("startStrength"))} <input data-dance="startStrength" type="number" min="0" max="1" step="0.05"></label>
+        <label class="m3td-field">${esc(tr("endStrength"))} <input data-dance="endStrength" type="number" min="0" max="1" step="0.05"></label>
+      </div>
       <div class="m3td-timeline-shell">
         <div class="m3td-labels"><div class="m3td-track-label">${esc(tr("referenceVideo"))}</div><div class="m3td-track-label audio"><span>${esc(tr("videoAudio"))}</span><button class="m3td-audio-toggle" data-action="videoAudioToggle" type="button">${esc(tr("off"))}</button></div></div>
         <div class="m3td-viewport"><div class="m3td-stage"></div></div>
@@ -577,6 +592,18 @@ class TimelineDirectorUI {
     const durInput = this.root.querySelector('[data-field="selectionDuration"]');
     const zoomInput = this.root.querySelector('[data-field="zoom"]');
     const segmentCountInput = this.root.querySelector('[data-field="segmentCount"]');
+    for (const input of this.root.querySelectorAll("[data-dance]")) {
+      input.onchange = () => {
+        const key = input.dataset.dance;
+        const value = input.type === "checkbox" ? input.checked : input.value;
+        this.state.danceContinuation = normalizeDanceContinuation({
+          ...this.state.danceContinuation,
+          [key]: value,
+        });
+        this.sync();
+        this.render();
+      };
+    }
     this.root.addEventListener("input", event => {
       if (event.target === startInput) {
         this.state.selection.start = Math.max(0, num(startInput.value));
@@ -681,6 +708,17 @@ class TimelineDirectorUI {
     this.root.querySelector('[data-field="selectionDuration"]').value = this.state.selection.duration.toFixed(2);
     this.root.querySelector('[data-field="zoom"]').value = this.zoom;
     this.root.querySelector('[data-field="segmentCount"]').value = this.segmentCountDraft;
+    const dance = this.state.danceContinuation;
+    for (const input of this.root.querySelectorAll("[data-dance]")) {
+      const key = input.dataset.dance;
+      if (input.type === "checkbox") input.checked = dance[key] === true;
+      else input.value = dance[key];
+      if (key !== "enabled") {
+        input.disabled = !dance.enabled || (
+          ["taperFrames", "endStrength"].includes(key) && !dance.taperEnabled
+        );
+      }
+    }
     if (this.videoAudioToggle) {
       this.videoAudioToggle.textContent = tr(this.state.videoAudioEnabled ? "off" : "on");
       this.videoAudioToggle.classList.toggle("off", !this.state.videoAudioEnabled);

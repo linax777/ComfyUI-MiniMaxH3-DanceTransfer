@@ -4,6 +4,7 @@
       "brandPlanner": "MiniMax H3 素材规划台", "brandDirector": "MiniMax H3 时间线导演台（兼容）",
       "addVideo": "＋ 视频", "addImage": "＋ 图片", "addAudio": "＋ 音频", "splitAtPlayhead": "✂ 在播放头分段", "deleteClip": "删除片段", "ready": "就绪",
       "selectionStart": "选区起点", "referenceDuration": "参考时长", "zoom": "缩放", "fitAll": "适应全部", "matchNearestGap": "匹配最近空隙", "materialSegments": "素材分段", "updateSegments": "更新分段",
+      "danceContinuation": "舞蹈連續", "enable": "啟用", "contextFrames": "上下文幀數", "taper": "漸弱", "taperFrames": "漸弱幀數", "startStrength": "起始強度", "endStrength": "結束強度",
       "timelineHelp": "拖动片段/播放头 · 边缘自动吸附 · 选区时长=生成时长", "referenceVideo": "参考视频", "videoAudio": "视频原声", "off": "关闭", "on": "开启", "noClipSelected": "未选中片段",
       "previewEmpty": "拖动红色播放头到视频片段上，即可查看当前位置画面", "previewTitle": "低清视频监看 · 最高 480×270 / 12fps", "noPreviewVideo": "当前没有可预览的视频", "playPreview": "▶ 播放预览", "pausePreview": "❚❚ 暂停预览",
       "previewNote": "仅预览使用低清无声代理；最终生成读取原始视频，视频原声是否参与参考由轨道开关控制。",
