@@ -161,6 +161,26 @@ def test_dance_continuation_parses_serialized_values():
     )
 
 
+def test_experimental_context_noise_parses_off_by_default_and_when_enabled():
+    dance = load_dance_module()
+
+    default = dance.parse_dance_continuation({})
+    enabled = dance.parse_dance_continuation({
+        "danceContinuation": {
+            "contextNoiseEnabled": True,
+            "contextNoiseStrength": 0.3,
+            "contextNoiseTaperFrames": 4,
+        }
+    })
+
+    assert default.context_noise_enabled is False
+    assert default.context_noise_strength == 0.0
+    assert default.context_noise_taper_frames == 4
+    assert enabled.context_noise_enabled is True
+    assert enabled.context_noise_strength == 0.3
+    assert enabled.context_noise_taper_frames == 4
+
+
 @pytest.mark.parametrize(
     ("values", "message"),
     [
@@ -171,6 +191,10 @@ def test_dance_continuation_parses_serialized_values():
         ({"startStrength": 1.01}, "start_strength"),
         ({"endStrength": -0.01}, "end_strength"),
         ({"endStrength": 1.01}, "end_strength"),
+        ({"contextNoiseStrength": -0.01}, "context_noise_strength"),
+        ({"contextNoiseStrength": 1.01}, "context_noise_strength"),
+        ({"contextNoiseTaperFrames": -1}, "context_noise_taper_frames"),
+        ({"contextNoiseTaperFrames": 25}, "context_noise_taper_frames"),
     ],
 )
 def test_dance_continuation_rejects_invalid_values(values, message):
@@ -216,6 +240,40 @@ def test_mutating_continuation_copy_never_changes_clean_output():
     continuity_working_copy.zero_()
 
     assert torch.equal(previous_clean_output, original)
+
+
+def test_context_noise_is_deterministic_and_never_mutates_clean_source():
+    dance = load_dance_module()
+    previous_clean_output = torch.ones((7, 2), dtype=torch.float32)
+    original = previous_clean_output.clone()
+
+    first = dance.apply_deterministic_context_noise(
+        previous_clean_output, strength=0.2, taper_steps=3, seed=1234,
+    )
+    second = dance.apply_deterministic_context_noise(
+        previous_clean_output, strength=0.2, taper_steps=3, seed=1234,
+    )
+    different_segment = dance.apply_deterministic_context_noise(
+        previous_clean_output, strength=0.2, taper_steps=3, seed=1235,
+    )
+
+    assert torch.equal(first, second)
+    assert not torch.equal(first, different_segment)
+    assert torch.equal(previous_clean_output, original)
+    assert first.data_ptr() != previous_clean_output.data_ptr()
+    assert torch.equal(first[-1], previous_clean_output[-1])
+
+
+def test_disabled_context_noise_returns_an_independent_copy():
+    dance = load_dance_module()
+    source = torch.arange(8, dtype=torch.float32).reshape(4, 2)
+
+    result = dance.apply_deterministic_context_noise(
+        source, strength=0.0, taper_steps=4, seed=1,
+    )
+
+    assert torch.equal(result, source)
+    assert result.data_ptr() != source.data_ptr()
 
 
 def test_enabled_dance_timing_keeps_requested_rgb_and_aligned_latent_separate():

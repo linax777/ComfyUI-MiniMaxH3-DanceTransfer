@@ -15,6 +15,8 @@ from comfy.ldm.minimax.model import FRAME_PER_TOKEN
 from comfy.nested_tensor import NestedTensor
 from comfy_api.latest import io
 
+from .dance_continuation import apply_deterministic_context_noise
+
 
 def _h3_streams(latent, label):
     samples = latent.get("samples") if isinstance(latent, dict) else None
@@ -103,6 +105,9 @@ def _apply_linear_temporal_noise_mask(
     gradient=True,
     audio_soft_release=False,
     video_mask_values=None,
+    context_noise_strength=0.0,
+    context_noise_taper_ticks=0,
+    context_noise_seed=0,
 ):
     """Copy the previous tail and configure denoising inside the Guide interval.
 
@@ -134,6 +139,13 @@ def _apply_linear_temporal_noise_mask(
     video = target_video.clone()
     video_tail = source_video[:1, :, -video_tokens:, :, :].to(
         device=video.device, dtype=video.dtype
+    )
+    video_tail = apply_deterministic_context_noise(
+        video_tail,
+        strength=float(context_noise_strength),
+        taper_steps=min(int(context_noise_taper_ticks), video_tokens),
+        seed=int(context_noise_seed),
+        time_dim=2,
     )
     video[:, :, :video_tokens, :, :] = video_tail.expand(
         video.shape[0], -1, -1, -1, -1
@@ -223,6 +235,8 @@ def _apply_linear_temporal_noise_mask(
         "video_mask_end": float(video_ramp[-1].item()),
         "gradient": bool(gradient),
         "audio_soft_release": bool(audio_soft_release and include_audio),
+        "context_noise_strength": float(context_noise_strength),
+        "context_noise_seed": int(context_noise_seed),
     }
 
 

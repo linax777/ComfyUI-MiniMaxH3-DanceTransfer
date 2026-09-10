@@ -33,6 +33,9 @@ class DanceContinuationConfig:
     taper_frames: int = 12
     start_strength: float = 1.0
     end_strength: float = 0.0
+    context_noise_enabled: bool = False
+    context_noise_strength: float = 0.0
+    context_noise_taper_frames: int = 4
 
     def __post_init__(self) -> None:
         if self.context_frames < 0:
@@ -45,6 +48,14 @@ class DanceContinuationConfig:
             raise ValueError("start_strength must be in [0, 1]")
         if not 0.0 <= self.end_strength <= 1.0:
             raise ValueError("end_strength must be in [0, 1]")
+        if not 0.0 <= self.context_noise_strength <= 1.0:
+            raise ValueError("context_noise_strength must be in [0, 1]")
+        if self.context_noise_taper_frames < 0:
+            raise ValueError("context_noise_taper_frames cannot be negative")
+        if self.context_noise_taper_frames > self.context_frames:
+            raise ValueError(
+                "context_noise_taper_frames cannot exceed context_frames"
+            )
 
 
 @dataclass(frozen=True)
@@ -68,6 +79,9 @@ def parse_dance_continuation(timeline: object) -> DanceContinuationConfig:
         taper_frames=int(values.get("taperFrames", 12)),
         start_strength=float(values.get("startStrength", 1.0)),
         end_strength=float(values.get("endStrength", 0.0)),
+        context_noise_enabled=bool(values.get("contextNoiseEnabled", False)),
+        context_noise_strength=float(values.get("contextNoiseStrength", 0.0)),
+        context_noise_taper_frames=int(values.get("contextNoiseTaperFrames", 4)),
     )
 
 
@@ -79,6 +93,56 @@ def extract_tail_frames(frames: Any, frame_count: int) -> Any:
         return frames[:0].clone()
     available = int(frames.shape[0])
     return frames[-min(requested, available) :].clone()
+
+
+def apply_deterministic_context_noise(
+    clean_source: torch.Tensor,
+    strength: float,
+    taper_steps: int,
+    seed: int,
+    *,
+    time_dim: int = 0,
+) -> torch.Tensor:
+    """Add reproducible noise to a disposable clone of continuity context."""
+
+    amount = float(strength)
+    taper = int(taper_steps)
+    if not 0.0 <= amount <= 1.0:
+        raise ValueError("strength must be in [0, 1]")
+    if taper < 0:
+        raise ValueError("taper_steps cannot be negative")
+    if clean_source.ndim == 0:
+        raise ValueError("clean_source must have a temporal dimension")
+    resolved_dim = int(time_dim) % clean_source.ndim
+    step_count = int(clean_source.shape[resolved_dim])
+    if taper > step_count:
+        raise ValueError("taper_steps cannot exceed the temporal length")
+
+    continuity_working_copy = clean_source.clone()
+    if amount == 0.0 or continuity_working_copy.numel() == 0:
+        return continuity_working_copy
+
+    generator = torch.Generator(device=continuity_working_copy.device)
+    generator.manual_seed(int(seed) & 0xFFFFFFFFFFFFFFFF)
+    noise = torch.randn(
+        continuity_working_copy.shape,
+        dtype=continuity_working_copy.dtype,
+        device=continuity_working_copy.device,
+        generator=generator,
+    )
+    weights = torch.full(
+        (step_count,), amount,
+        dtype=continuity_working_copy.dtype,
+        device=continuity_working_copy.device,
+    )
+    if taper > 0:
+        weights[-taper:] = torch.linspace(
+            amount, 0.0, steps=taper,
+            dtype=weights.dtype, device=weights.device,
+        )
+    shape = [1] * continuity_working_copy.ndim
+    shape[resolved_dim] = step_count
+    return continuity_working_copy + noise * weights.reshape(shape)
 
 
 def align_h3_context_frames(requested_frames: int) -> int:

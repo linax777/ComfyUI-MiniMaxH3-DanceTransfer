@@ -268,6 +268,9 @@ def main():
             "taperFrames": 12,
             "startStrength": 1.0,
             "endStrength": 0.0,
+            "contextNoiseEnabled": True,
+            "contextNoiseStrength": 0.3,
+            "contextNoiseTaperFrames": 4,
         }
         dance_plan = finite.MiniMaxH3LongReferenceSegmentPlan.execute(
             plan=dance_source, prompt=shared_prompt,
@@ -281,6 +284,23 @@ def main():
             item["timeline"]["videoClips"][0]["referenceMode"] == source_mode
             for item in dance_plan["segment_plans"]
         )
+
+    dance_output = finite.MiniMaxH3FiniteSegmentSampler.execute(
+        model=object(), clip=object(), vae=object(), audio_vae=object(),
+        finite_plan=dance_plan, sampler=object(),
+        sigmas=torch.linspace(1.0, 0.0, 5), seed=100,
+        continue_audio_latent=True, ref_image_size="match",
+    )
+    dance_continuations = [
+        node["inputs"] for node in dance_output.expand.values()
+        if node["class_type"] == "MiniMaxH3FiniteLatentContinuation"
+    ]
+    assert [node["context_noise_seed"] for node in dance_continuations] == list(
+        range(100, 107)
+    )
+    assert all(node["context_noise_enabled"] is True for node in dance_continuations)
+    assert all(node["context_noise_strength"] == 0.3 for node in dance_continuations)
+    assert all(node["context_noise_taper_frames"] == 4 for node in dance_continuations)
 
     short_source = _long_reference_plan()
     short_source["generation_seconds"] = 5.0

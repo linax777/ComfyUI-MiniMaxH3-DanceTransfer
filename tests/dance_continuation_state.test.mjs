@@ -12,6 +12,9 @@ test("old workflow loads with dance continuation disabled", () => {
     taperFrames: 12,
     startStrength: 1,
     endStrength: 0,
+    contextNoiseEnabled: false,
+    contextNoiseStrength: 0,
+    contextNoiseTaperFrames: 4,
   });
 });
 
@@ -23,6 +26,9 @@ test("serialized dance controls are normalized without changing intent", () => {
     taperFrames: 18,
     startStrength: 0.8,
     endStrength: 0.2,
+    contextNoiseEnabled: true,
+    contextNoiseStrength: 0.3,
+    contextNoiseTaperFrames: 4,
   }), {
     enabled: true,
     contextFrames: 30,
@@ -30,6 +36,9 @@ test("serialized dance controls are normalized without changing intent", () => {
     taperFrames: 18,
     startStrength: 0.8,
     endStrength: 0.2,
+    contextNoiseEnabled: true,
+    contextNoiseStrength: 0.3,
+    contextNoiseTaperFrames: 4,
   });
 });
 
@@ -39,6 +48,8 @@ test("invalid UI numbers clamp to backend-valid ranges", () => {
     taperFrames: 99,
     startStrength: 2,
     endStrength: -1,
+    contextNoiseStrength: 2,
+    contextNoiseTaperFrames: 99,
   }), {
     enabled: false,
     contextFrames: 0,
@@ -46,5 +57,8 @@ test("invalid UI numbers clamp to backend-valid ranges", () => {
     taperFrames: 0,
     startStrength: 1,
     endStrength: 0,
+    contextNoiseEnabled: false,
+    contextNoiseStrength: 1,
+    contextNoiseTaperFrames: 0,
   });
 });

@@ -476,6 +476,10 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
                 io.Int.Input("taper_frames", default=12, min=0, max=362),
                 io.Float.Input("start_strength", default=1.0, min=0.0, max=1.0),
                 io.Float.Input("end_strength", default=0.0, min=0.0, max=1.0),
+                io.Boolean.Input("context_noise_enabled", default=False),
+                io.Float.Input("context_noise_strength", default=0.0, min=0.0, max=1.0),
+                io.Int.Input("context_noise_taper_frames", default=4, min=0, max=362),
+                io.Int.Input("context_noise_seed", default=0, min=0, max=0xFFFFFFFFFFFFFFFF),
                 io.Model.Input("model"),
                 io.Sigmas.Input("sigmas"),
                 io.Latent.Input("previous_clean_output", optional=True),
@@ -495,6 +499,8 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
         dance_continuation_enabled=False,
         context_frames=24, taper_enabled=False, taper_frames=12,
         start_strength=1.0, end_strength=0.0,
+        context_noise_enabled=False, context_noise_strength=0.0,
+        context_noise_taper_frames=4, context_noise_seed=0,
     ):
         requested_overlap = int(overlap_frames)
         actual_overlap = (
@@ -528,13 +534,23 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
             gradient=False,
             audio_soft_release=bool(continue_audio_latent),
             video_mask_values=video_mask_values,
+            context_noise_strength=(
+                float(context_noise_strength)
+                if bool(dance_continuation_enabled) and bool(context_noise_enabled)
+                else 0.0
+            ),
+            context_noise_taper_ticks=rgb_frames_to_h3_latent_ticks(
+                int(context_noise_taper_frames)
+            ),
+            context_noise_seed=int(context_noise_seed),
         )
         if bool(dance_continuation_enabled):
             print(
                 f"[DANCE] segment={int(iteration) + 1} "
                 f"continuity_rgb_frames={int(context_frames)} "
                 f"continuity_latent_ticks={details['video_tokens']} "
-                f"taper_rgb_frames={int(taper_frames) if bool(taper_enabled) else 0}"
+                f"taper_rgb_frames={int(taper_frames) if bool(taper_enabled) else 0} "
+                f"context_noise_strength={details['context_noise_strength']:.2f}"
             )
         patched_model = install_drift_control_av_model(
             model, continuity_working_copy, sigmas,
@@ -760,6 +776,16 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 "taper_frames": int(dance_config.get("taper_frames", 12)),
                 "start_strength": float(dance_config.get("start_strength", 1.0)),
                 "end_strength": float(dance_config.get("end_strength", 0.0)),
+                "context_noise_enabled": bool(
+                    dance_config.get("context_noise_enabled", False)
+                ),
+                "context_noise_strength": float(
+                    dance_config.get("context_noise_strength", 0.0)
+                ),
+                "context_noise_taper_frames": int(
+                    dance_config.get("context_noise_taper_frames", 4)
+                ),
+                "context_noise_seed": (int(seed) + index) & 0xFFFFFFFFFFFFFFFF,
                 "model": model, "sigmas": sigmas,
             }
             if previous_clean_output is not None:

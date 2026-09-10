@@ -5,6 +5,9 @@ export const DEFAULT_DANCE_CONTINUATION = Object.freeze({
   taperFrames: 12,
   startStrength: 1,
   endStrength: 0,
+  contextNoiseEnabled: false,
+  contextNoiseStrength: 0,
+  contextNoiseTaperFrames: 4,
 });
 
 const finiteNumber = (value, fallback) => {
@@ -38,6 +41,23 @@ export function normalizeDanceContinuation(raw) {
       finiteNumber(values.endStrength, DEFAULT_DANCE_CONTINUATION.endStrength),
       0,
       1,
+    ),
+    contextNoiseEnabled: values.contextNoiseEnabled === true,
+    contextNoiseStrength: clamp(
+      finiteNumber(
+        values.contextNoiseStrength,
+        DEFAULT_DANCE_CONTINUATION.contextNoiseStrength,
+      ),
+      0,
+      1,
+    ),
+    contextNoiseTaperFrames: clamp(
+      Math.floor(finiteNumber(
+        values.contextNoiseTaperFrames,
+        DEFAULT_DANCE_CONTINUATION.contextNoiseTaperFrames,
+      )),
+      0,
+      contextFrames,
     ),
   };
 }

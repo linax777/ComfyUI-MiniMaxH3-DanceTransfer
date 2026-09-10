@@ -13,7 +13,7 @@ const TIMELINE_EN = {
   addVideo: "＋ Video", addImage: "＋ Image", addAudio: "＋ Audio", splitAtPlayhead: "✂ Split at Playhead", deleteClip: "Delete Clip", ready: "Ready",
   selectionStart: "Selection start", referenceDuration: "Reference duration", zoom: "Zoom", fitAll: "Fit all", matchNearestGap: "Match nearest gap",
   materialSegments: "Material segments", updateSegments: "Update segments", timelineHelp: "Drag clips/playhead · Edge snapping · Selection duration = generation duration",
-  danceContinuation: "Dance Continuation", enable: "Enable", contextFrames: "Context frames", taper: "Taper", taperFrames: "Taper frames", startStrength: "Start strength", endStrength: "End strength",
+  danceContinuation: "Dance Continuation", enable: "Enable", contextFrames: "Context frames", taper: "Taper", taperFrames: "Taper frames", startStrength: "Start strength", endStrength: "End strength", experimentalNoise: "Experimental noise", noiseStrength: "Noise strength", noiseTaperFrames: "Noise taper frames",
   referenceVideo: "Reference video", videoAudio: "Video audio", off: "Off", on: "On", noClipSelected: "No clip selected",
   previewEmpty: "Move the red playhead over a video clip to preview that position", previewTitle: "Low-resolution monitor · up to 480×270 / 12 fps",
   noPreviewVideo: "No video is available for preview", playPreview: "▶ Play preview", pausePreview: "❚❚ Pause preview",
@@ -522,6 +522,9 @@ class TimelineDirectorUI {
         <label class="m3td-field">${esc(tr("taperFrames"))} <input data-dance="taperFrames" type="number" min="0" max="362" step="1"></label>
         <label class="m3td-field">${esc(tr("startStrength"))} <input data-dance="startStrength" type="number" min="0" max="1" step="0.05"></label>
         <label class="m3td-field">${esc(tr("endStrength"))} <input data-dance="endStrength" type="number" min="0" max="1" step="0.05"></label>
+        <label class="m3td-field"><input data-dance="contextNoiseEnabled" type="checkbox"> ${esc(tr("experimentalNoise"))}</label>
+        <label class="m3td-field">${esc(tr("noiseStrength"))} <input data-dance="contextNoiseStrength" type="number" min="0" max="1" step="0.05"></label>
+        <label class="m3td-field">${esc(tr("noiseTaperFrames"))} <input data-dance="contextNoiseTaperFrames" type="number" min="0" max="362" step="1"></label>
       </div>
       <div class="m3td-timeline-shell">
         <div class="m3td-labels"><div class="m3td-track-label">${esc(tr("referenceVideo"))}</div><div class="m3td-track-label audio"><span>${esc(tr("videoAudio"))}</span><button class="m3td-audio-toggle" data-action="videoAudioToggle" type="button">${esc(tr("off"))}</button></div></div>
@@ -714,9 +717,10 @@ class TimelineDirectorUI {
       if (input.type === "checkbox") input.checked = dance[key] === true;
       else input.value = dance[key];
       if (key !== "enabled") {
-        input.disabled = !dance.enabled || (
-          ["taperFrames", "endStrength"].includes(key) && !dance.taperEnabled
-        );
+        input.disabled = !dance.enabled
+          || (["taperFrames", "endStrength"].includes(key) && !dance.taperEnabled)
+          || (["contextNoiseStrength", "contextNoiseTaperFrames"].includes(key)
+            && !dance.contextNoiseEnabled);
       }
     }
     if (this.videoAudioToggle) {
