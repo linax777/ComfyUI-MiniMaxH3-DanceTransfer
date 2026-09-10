@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import torch
+
 
 @dataclass(frozen=True)
 class DanceSegmentDebug:
@@ -114,6 +116,36 @@ def resolve_context_timing(
         aligned_context_frames=aligned,
         context_latent_ticks=rgb_frames_to_h3_latent_ticks(requested),
     )
+
+
+def build_linear_context_strength(
+    context_frames: int,
+    taper_frames: int,
+    start_strength: float,
+    end_strength: float,
+) -> torch.Tensor:
+    """Build per-RGB-frame continuity strength with a final linear release."""
+
+    context = int(context_frames)
+    taper = int(taper_frames)
+    start = float(start_strength)
+    end = float(end_strength)
+    if context < 0:
+        raise ValueError("context_frames cannot be negative")
+    if taper < 0 or taper > context:
+        raise ValueError("taper_frames must be in [0, context_frames]")
+    if not 0.0 <= start <= 1.0:
+        raise ValueError("start_strength must be in [0, 1]")
+    if not 0.0 <= end <= 1.0:
+        raise ValueError("end_strength must be in [0, 1]")
+    if context == 0:
+        return torch.empty(0, dtype=torch.float32)
+    if taper == 0:
+        return torch.full((context,), start, dtype=torch.float32)
+
+    held = torch.full((context - taper,), start, dtype=torch.float32)
+    release = torch.linspace(start, end, steps=taper, dtype=torch.float32)
+    return torch.cat((held, release))
 
 
 def format_dance_segment_debug(segment: DanceSegmentDebug) -> str:

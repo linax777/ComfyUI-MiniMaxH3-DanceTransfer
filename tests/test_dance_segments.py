@@ -240,3 +240,51 @@ def test_disabled_dance_timing_reproduces_legacy_overlap_alignment():
     assert timing.output_trim_frames == 39
     assert timing.aligned_context_frames == 39
     assert timing.context_latent_ticks == 12
+
+
+def test_linear_context_strength_holds_then_releases():
+    dance = load_dance_module()
+
+    strength = dance.build_linear_context_strength(24, 12, 1.0, 0.0)
+
+    assert strength.shape == (24,)
+    assert torch.equal(strength[:12], torch.ones(12))
+    assert strength[12].item() == pytest.approx(1.0)
+    assert strength[-1].item() == pytest.approx(0.0)
+    assert torch.all(strength[1:] <= strength[:-1])
+    assert torch.all((strength >= 0.0) & (strength <= 1.0))
+
+
+def test_zero_taper_keeps_start_strength_constant():
+    dance = load_dance_module()
+
+    strength = dance.build_linear_context_strength(5, 0, 0.7, 0.2)
+
+    assert torch.allclose(strength, torch.full((5,), 0.7))
+
+
+def test_zero_context_returns_empty_strength_tensor():
+    dance = load_dance_module()
+
+    assert dance.build_linear_context_strength(0, 0, 1.0, 0.0).shape == (0,)
+
+
+@pytest.mark.parametrize(
+    ("context", "taper", "start", "end", "message"),
+    [
+        (-1, 0, 1.0, 0.0, "context_frames"),
+        (4, -1, 1.0, 0.0, "taper_frames"),
+        (4, 5, 1.0, 0.0, "taper_frames"),
+        (4, 2, -0.1, 0.0, "start_strength"),
+        (4, 2, 1.1, 0.0, "start_strength"),
+        (4, 2, 1.0, -0.1, "end_strength"),
+        (4, 2, 1.0, 1.1, "end_strength"),
+    ],
+)
+def test_linear_context_strength_rejects_invalid_values(
+    context, taper, start, end, message
+):
+    dance = load_dance_module()
+
+    with pytest.raises(ValueError, match=message):
+        dance.build_linear_context_strength(context, taper, start, end)
