@@ -7,6 +7,7 @@ arithmetic can be tested without loading H3 weights.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,16 @@ def parse_dance_continuation(timeline: object) -> DanceContinuationConfig:
         start_strength=float(values.get("startStrength", 1.0)),
         end_strength=float(values.get("endStrength", 0.0)),
     )
+
+
+def extract_tail_frames(frames: Any, frame_count: int) -> Any:
+    """Return a detached working copy of the last requested clean frames."""
+
+    requested = int(frame_count)
+    if requested <= 0:
+        return frames[:0].clone()
+    available = int(frames.shape[0])
+    return frames[-min(requested, available) :].clone()
 
 
 def align_h3_context_frames(requested_frames: int) -> int:

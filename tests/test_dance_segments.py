@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import torch
 
 
 PROJECT_ROOT = Path(
@@ -177,3 +178,41 @@ def test_dance_continuation_rejects_invalid_values(values, message):
 
     with pytest.raises(ValueError, match=message):
         dance.parse_dance_continuation({"danceContinuation": values})
+
+
+@pytest.mark.parametrize(
+    ("source_count", "requested_count", "expected"),
+    [
+        (10, 24, list(range(10))),
+        (24, 24, list(range(24))),
+        (30, 24, list(range(6, 30))),
+        (30, 0, []),
+    ],
+)
+def test_extract_tail_frames_returns_clean_bounded_clone(
+    source_count, requested_count, expected
+):
+    dance = load_dance_module()
+    previous_clean_output = torch.arange(source_count, dtype=torch.float32).reshape(
+        source_count, 1
+    )
+    original = previous_clean_output.clone()
+
+    continuity_working_copy = dance.extract_tail_frames(
+        previous_clean_output, requested_count
+    )
+
+    assert continuity_working_copy[:, 0].tolist() == expected
+    assert torch.equal(previous_clean_output, original)
+    assert continuity_working_copy.data_ptr() != previous_clean_output.data_ptr()
+
+
+def test_mutating_continuation_copy_never_changes_clean_output():
+    dance = load_dance_module()
+    previous_clean_output = torch.arange(30, dtype=torch.float32).reshape(30, 1)
+    original = previous_clean_output.clone()
+
+    continuity_working_copy = dance.extract_tail_frames(previous_clean_output, 24)
+    continuity_working_copy.zero_()
+
+    assert torch.equal(previous_clean_output, original)
