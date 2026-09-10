@@ -11,6 +11,7 @@ from dataclasses import asdict
 from comfy_api.latest import io
 from comfy_execution.graph_utils import GraphBuilder
 
+from .audio_seams import equal_power_crossfade
 from .dance_namespace import DANCE_CATEGORIES, DANCE_NODE_IDS
 from .experimental_latent_guide import (
     _apply_linear_temporal_noise_mask,
@@ -564,6 +565,9 @@ class MiniMaxH3DanceFiniteLatentContinuation(io.ComfyNode):
             include_audio=bool(continue_audio_latent),
             gradient=False,
             audio_soft_release=bool(continue_audio_latent),
+            audio_guide_frames=(
+                int(context_frames) if bool(dance_continuation_enabled) else None
+            ),
             video_mask_values=video_mask_values,
             context_noise_strength=(
                 float(context_noise_strength)
@@ -687,6 +691,53 @@ class MiniMaxH3DanceFiniteAudioTrimTail(io.ComfyNode):
             raise ValueError("Accumulated audio is too short to replace its overlap tail")
         output = dict(audio)
         output["waveform"] = waveform[..., :-trim_samples].clone()
+        return io.NodeOutput(output)
+
+
+class MiniMaxH3DanceFiniteAudioCrossfadeJoin(io.ComfyNode):
+    """Join adjacent decoded segments without a hard PCM discontinuity."""
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id=DANCE_NODE_IDS["finite_audio_crossfade_join"],
+            display_name="MiniMax H3 Dance Finite Audio Crossfade Join (Internal)",
+            category=DANCE_CATEGORIES["internal"],
+            is_dev_only=True,
+            inputs=[
+                io.Audio.Input("audio1"),
+                io.Audio.Input("audio2"),
+                io.Int.Input("overlap_frames", default=39, min=0, max=362),
+                io.Boolean.Input("exact_overlap_frames", default=False),
+            ],
+            outputs=[io.Audio.Output(display_name="Crossfaded Audio")],
+        )
+
+    @classmethod
+    def execute(cls, audio1, audio2, overlap_frames, exact_overlap_frames=False):
+        waveform1 = audio1.get("waveform") if isinstance(audio1, dict) else None
+        waveform2 = audio2.get("waveform") if isinstance(audio2, dict) else None
+        sample_rate1 = int(audio1.get("sample_rate", 0)) if isinstance(audio1, dict) else 0
+        sample_rate2 = int(audio2.get("sample_rate", 0)) if isinstance(audio2, dict) else 0
+        if waveform1 is None or waveform2 is None or sample_rate1 <= 0 or sample_rate2 <= 0:
+            raise ValueError("both audio inputs must contain waveform and a valid sample_rate")
+        if sample_rate1 != sample_rate2:
+            raise ValueError("audio crossfade requires matching sample rates")
+        if waveform1.shape[:-1] != waveform2.shape[:-1]:
+            raise ValueError(
+                "audio crossfade requires matching batch and channel dimensions"
+            )
+        trim_frames = (
+            max(0, int(overlap_frames))
+            if bool(exact_overlap_frames)
+            else _valid_guide_frames(int(overlap_frames))
+        )
+        overlap_samples = round((trim_frames / H3_FPS) * sample_rate1)
+        output = dict(audio1)
+        output["waveform"] = equal_power_crossfade(
+            waveform1, waveform2, overlap_samples
+        )
+        output["sample_rate"] = sample_rate1
         return io.NodeOutput(output)
 
 
@@ -856,17 +907,19 @@ class MiniMaxH3DanceFiniteSegmentSampler(io.ComfyNode):
                     "ImageBatch", id=f"join_images_{number}",
                     image1=merged_images, image2=current_images,
                 )
-                previous_audio_for_join = merged_audio
                 if soft_audio:
-                    previous_audio_for_join = graph.node(
-                        DANCE_NODE_IDS["finite_audio_trim_tail"], id=f"trim_audio_tail_{number}",
-                        audio=merged_audio, overlap_frames=output_overlap,
+                    audio_join = graph.node(
+                        DANCE_NODE_IDS["finite_audio_crossfade_join"],
+                        id=f"crossfade_audio_{number}",
+                        audio1=merged_audio, audio2=current_audio,
+                        overlap_frames=output_overlap,
                         exact_overlap_frames=dance_enabled,
-                    ).out(0)
-                audio_join = graph.node(
-                    "AudioConcat", id=f"join_audio_{number}",
-                    audio1=previous_audio_for_join, audio2=current_audio, direction="after",
-                )
+                    )
+                else:
+                    audio_join = graph.node(
+                        "AudioConcat", id=f"join_audio_{number}",
+                        audio1=merged_audio, audio2=current_audio, direction="after",
+                    )
                 merged_images, merged_audio = image_join.out(0), audio_join.out(0)
             previous_clean_output = sampled.out(0)
             last_sampled = sampled.out(0)
@@ -881,7 +934,7 @@ class MiniMaxH3DanceFiniteSegmentSampler(io.ComfyNode):
             merged_images, merged_audio = output_trim.out(0), output_trim.out(1)
 
         mode_status = (
-            f"Drift-Control AV {overlap}-frame mask adapted to {steps} sampling steps; overlap audio uses an 8-tick Soft AV half-cosine release"
+            f"Drift-Control AV {overlap}-frame mask adapted to {steps} sampling steps; overlap audio uses an 8-tick Soft AV half-cosine release and peak-safe normalized equal-power PCM crossfade"
             if continue_audio_latent
             else f"Drift-Control AV {overlap}-frame mask adapted to {steps} sampling steps; audio is independently generated"
         )

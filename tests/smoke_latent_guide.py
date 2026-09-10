@@ -106,6 +106,22 @@ def main():
     assert soft_audio_mask[0, 0, 0, 64] == 1.0
     assert torch.all(soft_audio_mask[..., 65:] == 1)
 
+    # Dance continuation keeps the exact 24-frame output overlap even though
+    # H3 video context aligns to 22 frames.  Audio must therefore carry the
+    # full 24-frame / 40-tick second instead of inheriting the video alignment.
+    dance_target, _ = _latent(37)
+    dance_masked, dance_details = experiment._apply_linear_temporal_noise_mask(
+        dance_target, source, guide_frames=22, audio_guide_frames=24,
+        include_audio=True, gradient=False, audio_soft_release=True,
+    )
+    _, dance_audio_mask = dance_masked["noise_mask"].tensors
+    assert dance_details["frames"] == 22
+    assert dance_details["audio_frames"] == 24
+    assert dance_details["audio_tokens"] == 40
+    assert torch.all(dance_audio_mask[..., :32] == 0)
+    assert dance_audio_mask[..., 39].item() == 1.0
+    assert torch.all(dance_audio_mask[..., 40:] == 1)
+
     ref = torch.zeros((2, 8, 8, 3), dtype=torch.float32)
     cmp = torch.full_like(ref, 0.1)
     metrics = experiment.MiniMaxH3DanceVisualDifferenceMetrics.execute(ref, cmp, 4.0)

@@ -14,7 +14,8 @@ EXPECTED_NODES = {
     "MiniMaxH3DanceFiniteSegmentExpansion", "MiniMaxH3DanceFiniteSegmentSampler",
     "MiniMaxH3DanceLongReferenceSegmentPlan",
     "MiniMaxH3DanceFiniteLatentContinuation", "MiniMaxH3DanceFiniteSegmentFinalize",
-    "MiniMaxH3DanceFiniteAudioTrimTail", "MiniMaxH3DanceFiniteOutputTrim",
+    "MiniMaxH3DanceFiniteAudioTrimTail", "MiniMaxH3DanceFiniteAudioCrossfadeJoin",
+    "MiniMaxH3DanceFiniteOutputTrim",
 }
 
 

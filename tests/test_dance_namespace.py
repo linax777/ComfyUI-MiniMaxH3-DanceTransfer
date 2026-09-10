@@ -47,6 +47,7 @@ EXPECTED = {
     "long_reference_segment_plan": "MiniMaxH3DanceLongReferenceSegmentPlan",
     "finite_segment_sampler": "MiniMaxH3DanceFiniteSegmentSampler",
     "finite_audio_trim_tail": "MiniMaxH3DanceFiniteAudioTrimTail",
+    "finite_audio_crossfade_join": "MiniMaxH3DanceFiniteAudioCrossfadeJoin",
     "finite_output_trim": "MiniMaxH3DanceFiniteOutputTrim",
     "finite_latent_continuation": "MiniMaxH3DanceFiniteLatentContinuation",
     "finite_segment_finalize": "MiniMaxH3DanceFiniteSegmentFinalize",

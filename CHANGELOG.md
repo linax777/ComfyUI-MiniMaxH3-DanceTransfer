@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ## [Unreleased]
 
+### Fixed
+
+- Replace hard PCM concatenation at continued-audio segment boundaries with a peak-safe normalized equal-power overlap crossfade. Dance Continuation now carries audio on the exact requested RGB duration (for example, 24 frames maps to 40 audio ticks) independently of the H3-aligned video context, preventing the 24/22-frame mode from introducing an approximately 75 ms audio seam offset.
+
 ### Added
 
 - Add `MiniMax H3 Long Reference Auto Segmentation` for long-form character replacement and lip-sync workflows. It uses the Material Planner generation duration to slice long media, supports image-plus-audio plans without video, and uses the longer span when video and standalone audio coexist. Video windows preserve the selected Fixed Guide / Editable Reference / Boundary Only purpose; shorter media stops participating after it ends. One identical prompt is reused across all segments, and final H3 padding is trimmed back to the longest source span at 24fps.

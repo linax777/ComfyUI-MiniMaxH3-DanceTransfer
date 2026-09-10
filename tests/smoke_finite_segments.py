@@ -127,7 +127,7 @@ def main():
     assert len(by_type["SamplerCustomAdvanced"]) == 3
     assert len(by_type["MiniMaxH3DanceFiniteSegmentFinalize"]) == 3
     assert len(by_type["ImageBatch"]) == 2
-    assert len(by_type["AudioConcat"]) == 2
+    assert "AudioConcat" not in by_type
 
     encoders = sorted(by_type["MiniMaxH3DanceTimelineEncoder"])
     assert [node[1]["plan"]["prompt_index"] for node in encoders] == [1, 2, 3]
@@ -141,7 +141,7 @@ def main():
     assert all("gradient_temporal_mask" not in item[1] for item in continuations)
     assert all("continuation_mode" not in item[1] for item in continuations)
     assert all(item[1]["trim_audio_head"] is False for item in by_type["MiniMaxH3DanceFiniteSegmentFinalize"])
-    assert len(by_type["MiniMaxH3DanceFiniteAudioTrimTail"]) == 2
+    assert len(by_type["MiniMaxH3DanceFiniteAudioCrossfadeJoin"]) == 2
     assert "Drift-Control AV 39-frame" in output[3]
     assert "Soft AV half-cosine release" in output[3]
     assert "all segments use seed 100" in output[3]
@@ -172,7 +172,7 @@ def main():
         ]
         assert all(item["trim_audio_head"] is False for item in drift_finalizers)
         assert sum(
-            node["class_type"] == "MiniMaxH3DanceFiniteAudioTrimTail"
+            node["class_type"] == "MiniMaxH3DanceFiniteAudioCrossfadeJoin"
             for node in drift_output.expand.values()
         ) == 2
         assert f"adapted to {steps} sampling steps" in drift_output[3]
@@ -196,7 +196,7 @@ def main():
         if node["class_type"] in {
             "MiniMaxH3DanceFiniteLatentContinuation",
             "MiniMaxH3DanceFiniteSegmentFinalize",
-            "MiniMaxH3DanceFiniteAudioTrimTail",
+            "MiniMaxH3DanceFiniteAudioCrossfadeJoin",
         }
     )
 
@@ -209,6 +209,31 @@ def main():
         accumulated, overlap_frames=48,
     )[0]
     assert tail_trimmed["waveform"].shape[-1] == sample_rate * 4 - round(39 / 24 * sample_rate)
+
+    # A crossfade owns the same timeline duration as trim-and-concat, but it
+    # transitions between opposite-polarity seams instead of jumping instantly.
+    left = {
+        "waveform": torch.tensor(
+            [[[1.0] * 8, [0.5] * 8]], dtype=torch.float32,
+        ),
+        "sample_rate": 24,
+    }
+    right = {
+        "waveform": torch.tensor(
+            [[[-1.0] * 8, [-0.5] * 8]], dtype=torch.float32,
+        ),
+        "sample_rate": 24,
+    }
+    joined = finite.MiniMaxH3DanceFiniteAudioCrossfadeJoin.execute(
+        left, right, overlap_frames=4, exact_overlap_frames=True,
+    )[0]
+    assert joined["sample_rate"] == 24
+    assert joined["waveform"].shape == (1, 2, 12)
+    assert torch.equal(joined["waveform"][..., :4], left["waveform"][..., :4])
+    assert torch.equal(joined["waveform"][..., -4:], right["waveform"][..., -4:])
+    assert joined["waveform"][0, 0, 4].item() == 1.0
+    assert joined["waveform"][0, 0, 7].item() == -1.0
+    assert torch.max(torch.abs(torch.diff(joined["waveform"][0, 0]))).item() < 1.0
 
     shared_prompt = _prompt("Replace the target person using Picture 1 and Video 1")
     auto_planned = finite.MiniMaxH3DanceLongReferenceSegmentPlan.execute(
@@ -302,12 +327,55 @@ def main():
         node["inputs"] for node in dance_output.expand.values()
         if node["class_type"] == "MiniMaxH3DanceFiniteLatentContinuation"
     ]
+    dance_nodes = dance_output.expand
+    assert all(node["overlap_frames"] == 22 for node in dance_continuations)
+    assert all(node["context_frames"] == 24 for node in dance_continuations)
     assert [node["context_noise_seed"] for node in dance_continuations] == list(
         range(100, 107)
     )
     assert all(node["context_noise_enabled"] is True for node in dance_continuations)
     assert all(node["context_noise_strength"] == 0.3 for node in dance_continuations)
     assert all(node["context_noise_taper_frames"] == 4 for node in dance_continuations)
+    for number in range(1, 8):
+        finalizer = dance_nodes[f"finalize_{number}"]["inputs"]
+        assert finalizer["overlap_frames"] == 24
+        assert finalizer["exact_overlap_frames"] is True
+        assert finalizer["trim_audio_head"] is False
+    for number in range(2, 8):
+        crossfade = dance_nodes[f"crossfade_audio_{number}"]["inputs"]
+        previous = "finalize_1" if number == 2 else f"crossfade_audio_{number - 1}"
+        previous_slot = 2 if number == 2 else 0
+        assert crossfade["overlap_frames"] == 24
+        assert crossfade["exact_overlap_frames"] is True
+        assert crossfade["audio1"] == [previous, previous_slot]
+        assert crossfade["audio2"] == [f"finalize_{number}", 2]
+
+    independent_audio_output = finite.MiniMaxH3DanceFiniteSegmentSampler.execute(
+        model=object(), clip=object(), vae=object(), audio_vae=object(),
+        finite_plan=dance_plan, sampler=object(),
+        sigmas=torch.linspace(1.0, 0.0, 5), seed=100,
+        continue_audio_latent=False, ref_image_size="match",
+    )
+    independent_nodes = independent_audio_output.expand
+    assert not any(
+        node["class_type"] == "MiniMaxH3DanceFiniteAudioCrossfadeJoin"
+        for node in independent_nodes.values()
+    )
+    assert sum(
+        node["class_type"] == "AudioConcat"
+        for node in independent_nodes.values()
+    ) == 6
+    for number in range(1, 8):
+        finalizer = independent_nodes[f"finalize_{number}"]["inputs"]
+        assert finalizer["overlap_frames"] == 24
+        assert finalizer["exact_overlap_frames"] is True
+        assert finalizer["trim_audio_head"] is True
+    for number in range(2, 8):
+        audio_join = independent_nodes[f"join_audio_{number}"]["inputs"]
+        previous = "finalize_1" if number == 2 else f"join_audio_{number - 1}"
+        previous_slot = 2 if number == 2 else 0
+        assert audio_join["audio1"] == [previous, previous_slot]
+        assert audio_join["audio2"] == [f"finalize_{number}", 2]
 
     short_source = _long_reference_plan()
     short_source["generation_seconds"] = 5.0

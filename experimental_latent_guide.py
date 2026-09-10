@@ -15,6 +15,7 @@ from comfy.ldm.minimax.model import FRAME_PER_TOKEN
 from comfy.nested_tensor import NestedTensor
 from comfy_api.latest import io
 
+from .audio_seams import audio_ticks_for_rgb_frames
 from .dance_continuation import apply_deterministic_context_noise
 from .dance_namespace import DANCE_CATEGORIES, DANCE_NODE_IDS
 
@@ -109,6 +110,7 @@ def _apply_linear_temporal_noise_mask(
     context_noise_strength=0.0,
     context_noise_taper_ticks=0,
     context_noise_seed=0,
+    audio_guide_frames=None,
 ):
     """Copy the previous tail and configure denoising inside the Guide interval.
 
@@ -187,9 +189,12 @@ def _apply_linear_temporal_noise_mask(
         device=target_audio.device,
     )
     audio_tokens = 0
+    audio_frames = actual_frames
     if include_audio:
+        if audio_guide_frames is not None:
+            audio_frames = max(0, int(audio_guide_frames))
         audio_tokens = min(
-            round(actual_frames * 40 / 24),
+            audio_ticks_for_rgb_frames(audio_frames),
             source_audio.shape[-1],
             target_audio.shape[-1],
         )
@@ -231,6 +236,7 @@ def _apply_linear_temporal_noise_mask(
     output["noise_mask"] = NestedTensor((video_mask, audio_mask))
     return output, {
         "frames": actual_frames,
+        "audio_frames": audio_frames,
         "video_tokens": video_tokens,
         "audio_tokens": audio_tokens,
         "video_mask_start": float(video_ramp[0].item()),

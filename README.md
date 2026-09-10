@@ -23,7 +23,7 @@ The default requested continuation context is **24 RGB frames at 24 fps**. It is
 - Separate Dance Continuation controls for generated-tail context, tapering, strength, and optional experimental noise.
 - Direct AV-latent continuation without an RGB decode/re-encode round trip between segments.
 - Adaptive Drift-Control masking that preserves the seam-side latent while releasing the disposable prefix.
-- Soft AV audio continuation for smoother cross-segment sound transitions.
+- Soft AV latent continuation plus peak-safe normalized equal-power PCM crossfades for smooth, duration-preserving cross-segment sound transitions.
 - Automatic long-reference segmentation for character replacement and long-form lip sync.
 - Exact final trimming after H3 temporal-grid alignment and overlap removal.
 - A compact timeline for video, paired soundtrack, Guide, image, and standalone audio references.
