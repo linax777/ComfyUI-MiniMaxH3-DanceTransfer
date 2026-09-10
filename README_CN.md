@@ -58,19 +58,19 @@
 
 | 节点 | 用途 |
 | --- | --- |
-| **MiniMax H3 素材规划台** | 编辑素材并输出紧凑的 `素材规划` 与 `Omni素材包`。 |
-| **MiniMax H3 Omni 素材包提示词桥** | 将规划台素材送入已安装的 Prompt Rewriter Omni，并只输出 `rewritten_prompt`。 |
-| **MiniMax H3 规划编码器** | 接收规划、提示词、CLIP 和 VAE，生成 H3 `positive` 与 `Latent`。 |
-| **MiniMax H3 有限分段展开** | 按提示词和素材序号生成轻量级长视频分段规划，不包含采样。 |
-| **MiniMax H3 长参考自动分段** | 自动切割一个长视频及同步长音频，所有分段复用同一提示词并直接输出有限分段规划。 |
-| **MiniMax H3 有限分段采样** | 展开普通无环执行图，完成直接 Latent 续写、时间遮罩、采样、去重和合并。 |
-| **MiniMax H3 时间线导演台（兼容）** | 保留原先的一体化工作流和旧工作流兼容性。 |
+| **MiniMax H3 Dance 素材规划台** | 编辑素材并输出紧凑的 `素材规划` 与 `Omni素材包`。 |
+| **MiniMax H3 Dance Omni 素材包提示词桥** | 将规划台素材送入已安装的 Prompt Rewriter Omni，并只输出 `rewritten_prompt`。 |
+| **MiniMax H3 Dance 规划编码器** | 接收规划、提示词、CLIP 和 VAE，生成 H3 `positive` 与 `Latent`。 |
+| **MiniMax H3 Dance 有限分段展开** | 按提示词和素材序号生成轻量级长视频分段规划，不包含采样。 |
+| **MiniMax H3 Dance 长参考自动分段** | 自动切割一个长视频及同步长音频，所有分段复用同一提示词并直接输出有限分段规划。 |
+| **MiniMax H3 Dance 有限分段采样** | 展开普通无环执行图，完成直接 Latent 续写、时间遮罩、采样、去重和合并。 |
+| **MiniMax H3 Dance 时间线导演台** | 保留原先的一体化素材规划与编码功能；namespace 改名前的工作流仍须迁移节点类型。 |
 
 拆分节点可以避免“素材输出连接到前置提示词重写器，再返回同一编码节点”产生的循环：
 
 ```text
-素材规划台 ──Omni素材包──> Omni提示词桥 ──rewritten_prompt──> 规划编码器
-     └────────────────素材规划──────────────────────────────> 规划编码器
+MiniMax H3 Dance 素材规划台 ──Omni素材包──> MiniMax H3 Dance Omni 素材包提示词桥 ──rewritten_prompt──> MiniMax H3 Dance 规划编码器
+     └────────────────────────────────素材规划────────────────────────────────> MiniMax H3 Dance 规划编码器
 ```
 
 ## 安装
@@ -100,7 +100,7 @@ git clone https://github.com/linax777/ComfyUI-MiniMaxH3-DanceTransfer.git
 
 ### 1. 基础时间线规划
 
-使用兼容版 **MiniMax H3 时间线导演台**，适合直接编辑素材并完成 H3 编码。
+使用 **MiniMax H3 Dance 时间线导演台**，适合直接编辑素材并完成 H3 编码。它保留一体化界面；namespace 改名前保存的工作流仍须依照[节点 namespace 迁移指南](docs/NODE_NAMESPACE_MIGRATION.md)替换节点类型。
 
 [下载工作流](example_workflows/MiniMax_H3基础时间线规划工作流.json)
 
@@ -108,7 +108,7 @@ git clone https://github.com/linax777/ComfyUI-MiniMaxH3-DanceTransfer.git
 
 ### 2. 时间线规划拆分节点
 
-使用 **素材规划台 + 规划编码器**，适合需要解耦素材准备和 H3 编码的工作流。
+使用 **MiniMax H3 Dance 素材规划台 + MiniMax H3 Dance 规划编码器**，适合需要解耦素材准备和 H3 编码的工作流。
 
 [下载工作流](example_workflows/MiniMax_H3时间线规划拆分节点工作流.json)
 
@@ -126,8 +126,8 @@ git clone https://github.com/linax777/ComfyUI-MiniMaxH3-DanceTransfer.git
 
 ### 4. 插件内置无限时长视频生成
 
-`MiniMax H3 有限分段展开`只解析提示词、校验段数并生成规划，不含采样。将其输出连接到
-`MiniMax H3 有限分段采样`后，插件会生成普通无环执行图，完成逐段选材、直接 AV Latent
+`MiniMax H3 Dance 有限分段展开`只解析提示词、校验段数并生成规划，不含采样。将其输出连接到
+`MiniMax H3 Dance 有限分段采样`后，插件会生成普通无环执行图，完成逐段选材、直接 AV Latent
 续接、自适应 Drift-Control 视频遮罩、Soft AV 音频连续性、重叠去除和顺序合并；所有分段使用采样节点上的同一个种子，
 不依赖 ComfyUI 的通用 Loop 节点。
 
@@ -137,15 +137,15 @@ git clone https://github.com/linax777/ComfyUI-MiniMaxH3-DanceTransfer.git
 
 ### 长视频人物替换与数字人对口型
 
-在素材规划台中放入一个完整长视频，或只加入人物图片与独立长音频。将素材规划与
-一条统一提示词连接到 `MiniMax H3 长参考自动分段`，再把输出直接连接到
-`MiniMax H3 有限分段采样`，无需经过有限分段展开，也无需手写多段提示词。
+在 **MiniMax H3 Dance 素材规划台** 中放入一个完整长视频，或只加入人物图片与独立长音频。将素材规划与
+一条统一提示词连接到 `MiniMax H3 Dance 长参考自动分段`，再把输出直接连接到
+`MiniMax H3 Dance 有限分段采样`，无需经过 **MiniMax H3 Dance 有限分段展开**，也无需手写多段提示词。
 
 自动分段节点会忽略青色选区的单次生成位置。只有图片与音频时，以最长独立音频作为总时长；
 视频与独立音频同时存在时，以两者中较长的可用时长作为总时长，较短素材结束后不会被循环或
 冻结到后续分段。当前仍只接受最多一个时间线视频片段。
 
-单段生成时长直接继承素材规划台的 `生成时长`，不在自动分段节点中重复设置。原视频会保留素材规划台
+单段生成时长直接继承 **MiniMax H3 Dance 素材规划台** 的 `生成时长`，不在自动分段节点中重复设置。原视频会保留素材规划台
 选择的 `固定 Guide`、`可编辑参考` 或 `仅固定边界` 用途。人物替换应选择 `可编辑参考`；选择
 `固定 Guide` 会按帧锚定原视频，通常会阻碍人物替换。静态图片按原顺序在每一段复用。开启“同步切割独立音频”时，长音频与视频使用相同源入点和重叠窗口，
 适合数字人对口型；关闭时，每段完整复用独立音频，适合作为短音色参考。

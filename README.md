@@ -60,19 +60,19 @@ An editable reference-media timeline for ComfyUI's native **MiniMax H3 Reference
 
 | Node | Purpose |
 | --- | --- |
-| **MiniMax H3 Material Planner** | Edits media and outputs a compact H3 plan plus an ordered Omni media bundle. |
-| **MiniMax H3 Omni Media-Bundle Prompt Bridge** | Sends the bundle to an installed Prompt Rewriter Omni backend and returns only `rewritten_prompt`. |
-| **MiniMax H3 Plan Encoder** | Combines the plan, prompt, CLIP, and VAEs into H3 conditioning and latent outputs. |
-| **MiniMax H3 Finite Segment Expansion** | Creates a lightweight long-video plan from prompt/material ordinals without sampling. |
-| **MiniMax H3 Long Reference Auto Segmentation** | Uses the Material Planner duration to slice one long video and synchronized audio while preserving the selected video purpose and reusing one prompt. |
-| **MiniMax H3 Finite Segment Sampling** | Expands an acyclic graph for direct-latent continuation, masking, sampling, deduplication, and assembly. |
-| **MiniMax H3 Timeline Director (Compatibility)** | Preserves the original all-in-one workflow and older saved workflows. |
+| **MiniMax H3 Dance Material Planner** | Edits media and outputs a compact H3 plan plus an ordered Omni media bundle. |
+| **MiniMax H3 Dance Omni Media Prompt Bridge** | Sends the bundle to an installed Prompt Rewriter Omni backend and returns only `rewritten_prompt`. |
+| **MiniMax H3 Dance Plan Encoder** | Combines the plan, prompt, CLIP, and VAEs into H3 conditioning and latent outputs. |
+| **MiniMax H3 Dance Finite Segment Expansion** | Creates a lightweight long-video plan from prompt/material ordinals without sampling. |
+| **MiniMax H3 Dance Long Reference Auto Segmentation** | Uses the Material Planner duration to slice one long video and synchronized audio while preserving the selected video purpose and reusing one prompt. |
+| **MiniMax H3 Dance Finite Segment Sampler** | Expands an acyclic graph for direct-latent continuation, masking, sampling, deduplication, and assembly. |
+| **MiniMax H3 Dance Timeline Director** | Provides the original all-in-one material-planning and encoding interface. Workflows saved before the namespace rename must migrate their node types. |
 
 The split architecture avoids a ComfyUI dependency cycle:
 
 ```text
-Material Planner ──Omni bundle──> Omni Prompt Bridge ──rewritten_prompt──> Plan Encoder
-       └────────────────────H3 plan─────────────────────────────────────> Plan Encoder
+MiniMax H3 Dance Material Planner ──Omni bundle──> MiniMax H3 Dance Omni Media Prompt Bridge ──rewritten_prompt──> MiniMax H3 Dance Plan Encoder
+       └──────────────────────────────────────H3 plan────────────────────────────────────────────────────────────> MiniMax H3 Dance Plan Encoder
 ```
 
 ## Installation
@@ -104,7 +104,7 @@ No extra pip dependency is declared. The plugin uses PyAV, Pillow, NumPy, PyTorc
 
 ### 1. Basic timeline workflow
 
-Uses the compatibility **MiniMax H3 Timeline Director** for direct timeline editing and H3 encoding.
+Uses **MiniMax H3 Dance Timeline Director** for direct timeline editing and H3 encoding. It retains the all-in-one interface; workflows saved before the namespace rename must follow the [node namespace migration guide](docs/NODE_NAMESPACE_MIGRATION.md).
 
 [Download workflow](example_workflows/MiniMax_H3基础时间线规划工作流.json)
 
@@ -112,7 +112,7 @@ Uses the compatibility **MiniMax H3 Timeline Director** for direct timeline edit
 
 ### 2. Split planner and encoder
 
-Uses **Material Planner + Plan Encoder** to separate media preparation from H3 encoding.
+Uses **MiniMax H3 Dance Material Planner + MiniMax H3 Dance Plan Encoder** to separate media preparation from H3 encoding.
 
 [Download workflow](example_workflows/MiniMax_H3时间线规划拆分节点工作流.json)
 
@@ -130,8 +130,8 @@ Adds **MiniMax-H3 Prompt Rewriter Omni (sees and hears)** so the same ordered me
 
 ### 4. Plugin-owned unlimited-length video generation
 
-**MiniMax H3 Finite Segment Expansion** only validates prompts, segment count, and media
-assignments; it performs no sampling. Connect its plan to **MiniMax H3 Finite Segment Sampling**
+**MiniMax H3 Dance Finite Segment Expansion** only validates prompts, segment count, and media
+assignments; it performs no sampling. Connect its plan to **MiniMax H3 Dance Finite Segment Sampler**
 to build a standard acyclic graph for direct AV-latent continuation with adaptive Drift-Control video masking and Soft AV audio continuity,
 overlap removal, and ordered assembly. Every segment uses the same seed. No generic Loop nodes are required.
 
@@ -141,15 +141,13 @@ overlap removal, and ordered assembly. Every segment uses the same seed. No gene
 
 ### Long-video character replacement and lip sync
 
-Place one complete long video in the Material Planner, or use identity pictures plus a standalone
-long driving-audio track without video. Connect the plan and one shared prompt to **MiniMax H3 Long Reference
-Auto Segmentation**, then connect its output directly to **Finite Segment Sampling**. Finite Segment
-Expansion and manually repeated prompts are not required.
+Place one complete long video in **MiniMax H3 Dance Material Planner**, or use identity pictures plus a standalone
+long driving-audio track without video. Connect the plan and one shared prompt to **MiniMax H3 Dance Long Reference Auto Segmentation**, then connect its output directly to **MiniMax H3 Dance Finite Segment Sampler**. **MiniMax H3 Dance Finite Segment Expansion** and manually repeated prompts are not required.
 
 The node does not use the cyan single-run selection as its total range. An image-plus-audio plan follows
 the longest standalone audio. When video and standalone audio coexist, the longer available duration sets
 the total range, and the shorter medium stops participating after it ends instead of being looped or frozen.
-At most one timeline video is accepted. Each segment inherits its generation duration from the Material Planner. Every video window
+At most one timeline video is accepted. Each segment inherits its generation duration from **MiniMax H3 Dance Material Planner**. Every video window
 preserves the source video's selected **Fixed Guide**, **Editable Reference**, or **Boundary Only** purpose.
 Use Editable Reference for character replacement; Fixed Guide intentionally anchors the original frames
 and will usually prevent replacement. Images retain their order in every segment. With **Slice Standalone

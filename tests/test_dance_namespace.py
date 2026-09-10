@@ -27,6 +27,14 @@ LOCALE_PATHS = {
 WORKFLOW_PATHS = tuple((PROJECT_ROOT / "example_workflows").glob("*.json")) + (
     PROJECT_ROOT / "tests" / "experiments" / "minimax_h3_latent_guide_ab_api.json",
 )
+FORK_DOCUMENTATION_PATHS = (
+    PROJECT_ROOT / "README.md",
+    PROJECT_ROOT / "README_CN.md",
+    PROJECT_ROOT / "docs" / "FINITE_SEGMENT_EXPANSION_CN.md",
+    PROJECT_ROOT / "docs" / "LONG_REFERENCE_AUTO_SEGMENT_CN.md",
+    PROJECT_ROOT / "docs" / "AGENT_LONG_VIDEO_GUIDE_CN.md",
+    PROJECT_ROOT / "tests" / "experiments" / "README_CN.md",
+)
 
 EXPECTED = {
     "timeline_director": "MiniMaxH3DanceTimelineDirector",
@@ -92,6 +100,73 @@ def test_fork_metadata_and_install_instructions_identify_dance_transfer():
     assert 'name = "comfyui-minimax-h3-dance-transfer"' in pyproject
     assert 'DisplayName = "MiniMax H3 Dance Transfer"' in pyproject
     assert "github.com/linax777/ComfyUI-MiniMaxH3-DanceTransfer.git" in readme
+
+
+def test_fork_documentation_uses_dance_node_names_and_ids():
+    """Catch fork documentation that directs users to retired node names or IDs."""
+    sources = {
+        path.relative_to(PROJECT_ROOT).as_posix(): path.read_text(encoding="utf-8")
+        for path in FORK_DOCUMENTATION_PATHS
+    }
+    combined = "\n".join(sources.values())
+
+    retired_display_names = {
+        "MiniMax H3 Material Planner",
+        "MiniMax H3 Omni Media-Bundle Prompt Bridge",
+        "MiniMax H3 Plan Encoder",
+        "MiniMax H3 Finite Segment Expansion",
+        "MiniMax H3 Long Reference Auto Segmentation",
+        "MiniMax H3 Finite Segment Sampling",
+        "MiniMax H3 Timeline Director",
+        "MiniMax H3 素材规划台",
+        "MiniMax H3 Omni 素材包提示词桥",
+        "MiniMax H3 规划编码器",
+        "MiniMax H3 有限分段展开",
+        "MiniMax H3 长参考自动分段",
+        "MiniMax H3 有限分段采样",
+        "MiniMax H3 时间线导演台",
+    }
+    assert all(name not in combined for name in retired_display_names)
+
+    readme = sources["README.md"]
+    expected_english_display_names = {
+        "MiniMax H3 Dance Material Planner",
+        "MiniMax H3 Dance Omni Media Prompt Bridge",
+        "MiniMax H3 Dance Plan Encoder",
+        "MiniMax H3 Dance Finite Segment Expansion",
+        "MiniMax H3 Dance Long Reference Auto Segmentation",
+        "MiniMax H3 Dance Finite Segment Sampler",
+        "MiniMax H3 Dance Timeline Director",
+    }
+    assert all(name in readme for name in expected_english_display_names)
+
+    chinese_readme = sources["README_CN.md"]
+    expected_chinese_display_names = {
+        "MiniMax H3 Dance 素材规划台",
+        "MiniMax H3 Dance Omni 素材包提示词桥",
+        "MiniMax H3 Dance 规划编码器",
+        "MiniMax H3 Dance 有限分段展开",
+        "MiniMax H3 Dance 长参考自动分段",
+        "MiniMax H3 Dance 有限分段采样",
+        "MiniMax H3 Dance 时间线导演台",
+    }
+    assert all(name in chinese_readme for name in expected_chinese_display_names)
+
+    assert "MiniMax H3 Dance 有限分段展开" in sources[
+        "docs/FINITE_SEGMENT_EXPANSION_CN.md"
+    ]
+    assert "MiniMax H3 Dance 长参考自动分段" in sources[
+        "docs/LONG_REFERENCE_AUTO_SEGMENT_CN.md"
+    ]
+    assert "MiniMax H3 Dance 时间线导演台" in sources[
+        "docs/AGENT_LONG_VIDEO_GUIDE_CN.md"
+    ]
+
+    experiment = sources["tests/experiments/README_CN.md"]
+    assert "MiniMaxH3DanceAddLatentGuide" in experiment
+    assert "MiniMaxH3DanceVisualDifferenceMetrics" in experiment
+    assert "MiniMaxH3AddLatentGuide" not in experiment
+    assert "MiniMaxH3VisualDifferenceMetrics" not in experiment
 
 
 def test_dance_categories_are_exact():
