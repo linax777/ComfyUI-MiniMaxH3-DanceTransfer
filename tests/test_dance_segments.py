@@ -88,6 +88,20 @@ def test_requested_rgb_context_is_distinct_from_h3_alignment():
     assert report[1].context_latent_ticks == 7
 
 
+def test_dance_segment_debug_format_is_machine_readable():
+    dance = load_dance_module()
+    report = dance.build_dance_segment_report(720, 243, 24)
+
+    assert dance.format_dance_segment_debug(report[0]) == (
+        "[DANCE] segment=1 source=0:243 output=0:243 "
+        "requested_context=0 aligned_context=0 latent_ticks=0"
+    )
+    assert dance.format_dance_segment_debug(report[1]) == (
+        "[DANCE] segment=2 source=219:462 output=243:462 "
+        "requested_context=24 aligned_context=22 latent_ticks=7"
+    )
+
+
 @pytest.mark.parametrize(
     ("total_frames", "segment_frames", "context_frames", "message"),
     [

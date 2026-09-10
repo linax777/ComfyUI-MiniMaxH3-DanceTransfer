@@ -41,6 +41,19 @@ def rgb_frames_to_h3_latent_ticks(requested_frames: int) -> int:
     return 2 if aligned <= 5 else ((aligned - 5) // 17) * 5 + 2
 
 
+def format_dance_segment_debug(segment: DanceSegmentDebug) -> str:
+    """Format stable, grep-friendly segment timing diagnostics."""
+
+    return (
+        f"[DANCE] segment={segment.segment_index + 1} "
+        f"source={segment.source_start_frame}:{segment.source_end_frame} "
+        f"output={segment.output_start_frame}:{segment.output_end_frame} "
+        f"requested_context={segment.requested_context_frames} "
+        f"aligned_context={segment.aligned_context_frames} "
+        f"latent_ticks={segment.context_latent_ticks}"
+    )
+
+
 def build_dance_segment_report(
     total_source_frames: int,
     segment_frames: int,

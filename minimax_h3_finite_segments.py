@@ -18,6 +18,10 @@ from .drift_control_av import (
     drift_control_step_count,
     install_drift_control_av_model,
 )
+from .dance_continuation import (
+    build_dance_segment_report,
+    format_dance_segment_debug,
+)
 from .minimax_h3_timeline_director import (
     TimelinePlan,
     _aligned_h3_length,
@@ -177,6 +181,14 @@ def _prepare_long_reference_plan(
     starts = [index * stride_frames for index in range(segment_count)]
     assembled_frames = segment_frames + (segment_count - 1) * stride_frames
     trim_tail_frames = max(0, assembled_frames - total_frames)
+
+    debug_segments = build_dance_segment_report(
+        total_source_frames=total_frames,
+        segment_frames=segment_frames,
+        requested_context_frames=actual_overlap,
+    )
+    for debug_segment in debug_segments:
+        print(format_dance_segment_debug(debug_segment))
 
     base_trim = max(0.0, float(clip.get("trimStart") or 0.0)) if clip else 0.0
     video_frames = max(0, round(video_duration * H3_FPS))
