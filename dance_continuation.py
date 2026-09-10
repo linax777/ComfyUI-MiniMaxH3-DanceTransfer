@@ -142,7 +142,8 @@ def apply_deterministic_context_noise(
         )
     shape = [1] * continuity_working_copy.ndim
     shape[resolved_dim] = step_count
-    return continuity_working_copy + noise * weights.reshape(shape)
+    continuity_working_copy.add_(noise * weights.reshape(shape))
+    return continuity_working_copy
 
 
 def align_h3_context_frames(requested_frames: int) -> int:

@@ -140,13 +140,14 @@ def _apply_linear_temporal_noise_mask(
     video_tail = source_video[:1, :, -video_tokens:, :, :].to(
         device=video.device, dtype=video.dtype
     )
-    video_tail = apply_deterministic_context_noise(
-        video_tail,
-        strength=float(context_noise_strength),
-        taper_steps=min(int(context_noise_taper_ticks), video_tokens),
-        seed=int(context_noise_seed),
-        time_dim=2,
-    )
+    if float(context_noise_strength) > 0.0:
+        video_tail = apply_deterministic_context_noise(
+            video_tail,
+            strength=float(context_noise_strength),
+            taper_steps=min(int(context_noise_taper_ticks), video_tokens),
+            seed=int(context_noise_seed),
+            time_dim=2,
+        )
     video[:, :, :video_tokens, :, :] = video_tail.expand(
         video.shape[0], -1, -1, -1, -1
     )

@@ -75,3 +75,11 @@ record peak VRAM for 2 and 4 segments using the same seed and settings:
 The expected live GPU set is the current sampler inputs and output. Finished
 assembly and debug metadata should not retain additional source RGB or modified
 continuation copies beyond the current segment.
+
+Implementation audit: the target latent is cloned once to become the masked
+continuation working copy. With experimental noise off (the default), the clean
+source tail is copied directly into that target clone without an intermediate
+tail clone. With noise on, exactly one disposable tail clone is modified in
+place; `previous_clean_output` remains read-only and is released after its next
+segment consumer completes. Actual peak VRAM still requires the production
+model, media, resolution, and ComfyUI allocator telemetry listed above.
