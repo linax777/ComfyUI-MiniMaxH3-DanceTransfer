@@ -1,4 +1,4 @@
-# ComfyUI MiniMax H3 Timeline Director
+# ComfyUI MiniMax H3 Dance Transfer
 
 [简体中文](README_CN.md) · English
 
@@ -79,10 +79,13 @@ Material Planner ──Omni bundle──> Omni Prompt Bridge ──rewritten_pro
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector.git
+git clone https://github.com/linax777/ComfyUI-MiniMaxH3-DanceTransfer.git
 ```
 
-Restart ComfyUI and search for `MiniMax H3`.
+Restart ComfyUI and search for `MiniMax H3 Dance`.
+
+For workflows saved before the node namespace rename, follow the
+[node namespace migration guide](docs/NODE_NAMESPACE_MIGRATION.md).
 
 The source UI is English. Simplified Chinese is provided through ComfyUI's official localization
 system and follows the language selected in ComfyUI settings; restart or reload the frontend after

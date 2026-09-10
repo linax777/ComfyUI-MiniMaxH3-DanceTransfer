@@ -1,5 +1,5 @@
 [project]
-name = "comfyui-minimax-h3-timeline-director"
+name = "comfyui-minimax-h3-dance-transfer"
 version = "0.6.0"
 description = "Editable reference media timeline for ComfyUI MiniMax H3 Reference to Video"
 readme = "README.md"
@@ -13,5 +13,5 @@ dev = []
 
 [tool.comfy]
 PublisherId = "local"
-DisplayName = "MiniMax H3 Timeline Director"
+DisplayName = "MiniMax H3 Dance Transfer"
 Icon = ""

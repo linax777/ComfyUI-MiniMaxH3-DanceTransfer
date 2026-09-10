@@ -1,4 +1,4 @@
-# Dance Conditioning Architecture
+# MiniMax H3 Dance Transfer Conditioning Architecture
 
 ## Baseline
 
@@ -29,11 +29,11 @@ before H3 sampling.
 
 ## Continuity-context path
 
-1. `MiniMaxH3FiniteSegmentSampler.execute` retains `sampled.out(0)` under the
+1. `MiniMaxH3DanceFiniteSegmentSampler.execute` retains `sampled.out(0)` under the
    explicit graph role `previous_clean_output` after each segment finishes.
 2. The next segment's independent source-motion plan is encoded first by
-   `MiniMaxH3TimelineEncoder`.
-3. `MiniMaxH3FiniteLatentContinuation.execute` receives the new target latent
+   `MiniMaxH3DanceTimelineEncoder`.
+3. `MiniMaxH3DanceFiniteLatentContinuation.execute` receives the new target latent
    and the previous clean sampled latent as separate arguments.
 4. `experimental_latent_guide._apply_linear_temporal_noise_mask` clones the
    previous latent tail into a disposable target-latent working copy and builds
@@ -42,12 +42,12 @@ before H3 sampling.
 
 ## Point immediately before sampling
 
-`MiniMaxH3FiniteSegmentSampler.execute` connects the two paths as follows:
+`MiniMaxH3DanceFiniteSegmentSampler.execute` connects the two paths as follows:
 
 ```text
-source RGB interval -> MiniMaxH3TimelineEncoder -> target latent ---------+
+source RGB interval -> MiniMaxH3DanceTimelineEncoder -> target latent ----+
                                                                        |
-previous clean sampled latent -> MiniMaxH3FiniteLatentContinuation -----+
+previous clean sampled latent -> MiniMaxH3DanceFiniteLatentContinuation -+
                                                                        v
                                                    SamplerCustomAdvanced
 ```

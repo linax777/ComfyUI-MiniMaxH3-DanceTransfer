@@ -1,4 +1,4 @@
-# ComfyUI MiniMax H3 时间线导演台
+# ComfyUI MiniMax H3 舞蹈遷移
 
 简体中文 · [English](README.md)
 
@@ -77,10 +77,12 @@
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector.git
+git clone https://github.com/linax777/ComfyUI-MiniMaxH3-DanceTransfer.git
 ```
 
-重启 ComfyUI 后，搜索 `MiniMax H3` 即可找到节点。
+重启 ComfyUI 后，搜索 `MiniMax H3 Dance` 即可找到节点。
+
+若要开启 namespace 改名前保存的工作流，请依照[节点 namespace 迁移指南](docs/NODE_NAMESPACE_MIGRATION.md)替换节点类型。
 
 插件以英文作为基础 UI，并通过 ComfyUI 官方本地化机制提供简体中文。它会跟随 ComfyUI
 设置中选择的界面语言；切换语言后请刷新前端或重启 ComfyUI。

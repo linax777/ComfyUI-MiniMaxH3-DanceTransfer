@@ -84,6 +84,16 @@ def test_dance_node_ids_are_collision_free_and_exact():
     assert all(value.startswith("MiniMaxH3Dance") for value in EXPECTED.values())
 
 
+def test_fork_metadata_and_install_instructions_identify_dance_transfer():
+    """Catch package metadata or install instructions that still identify upstream."""
+    pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert 'name = "comfyui-minimax-h3-dance-transfer"' in pyproject
+    assert 'DisplayName = "MiniMax H3 Dance Transfer"' in pyproject
+    assert "github.com/linax777/ComfyUI-MiniMaxH3-DanceTransfer.git" in readme
+
+
 def test_dance_categories_are_exact():
     namespace = load_namespace()
 
