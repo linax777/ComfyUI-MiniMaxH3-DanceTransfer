@@ -93,6 +93,62 @@ assert [n['overlap_frames'] for n in continuations]==[0,22,0]
 assert 'previous_images' not in continuations[2] and 'previous_latent' not in continuations[2]
 assert len([n for n in nodes if n['class_type']=='MiniMaxH3FiniteAudioTrimTail'])==1
 assert [n['inputs']['plan']['length'] for n in nodes if n['class_type']=='MiniMaxH3TimelineEncoder']==[56,73,39]
+
+# A locked soundtrack is sliced by each absolute GEN window, encoded into the
+# target AV latent after video continuation, and bypasses Soft AV assembly.
+locked=copy.deepcopy(source)
+locked_audio={'id':'master','file':'master.flac','name':'master.flac','duration':30.,'trimStart':0.,'audioMode':'locked'}
+locked['timeline']['audios']=[locked_audio]
+for segment in locked['timeline']['segmentConfig']['segments']:segment['audios']=['master']
+locked_result=finite.MiniMaxH3FiniteSegmentSampler.execute(
+    model='model',clip='clip',vae='vae',audio_vae='audio_vae',finite_plan=locked,
+    sampler='sampler',sigmas=torch.tensor([1.,.5,0.]),seed=7,continue_audio_latent=True,
+)
+locked_nodes=list(locked_result.expand.values())
+assert len([n for n in locked_nodes if n['class_type']=='MiniMaxH3LockedAudioSlice'])==3
+assert len([n for n in locked_nodes if n['class_type']=='VAEEncodeAudio'])==3
+assert len([n for n in locked_nodes if n['class_type']=='MiniMaxH3LockAudioLatent'])==3
+assert len([n for n in locked_nodes if n['class_type']=='MiniMaxH3LockedAudioMaster'])==1
+assert not [n for n in locked_nodes if n['class_type']=='MiniMaxH3FiniteAudioTrimTail']
+assert all(
+    n['inputs']['continue_audio_latent'] is False
+    for n in locked_nodes if n['class_type']=='MiniMaxH3FiniteLatentContinuation'
+)
+assert 'source soundtrack is encoded into every segment' in locked_result[3].lower()
+
+# Locked audio is decoded once as full PCM, then sample-sliced.  A compressed
+# source may be shorter than its metadata and a GEN range may extend past its
+# end; both cases pad only the sampling interval instead of rejecting the job.
+locked_slice_plan=copy.deepcopy(locked)
+locked_slice_plan['timeline']['segmentConfig']={'count':0,'segments':[]}
+locked_slice_plan['timeline']['selection']={'start':0.,'duration':56/24}
+locked_slice_plan['length']=56
+one_second_pcm={
+    'sample_rate':1000,
+    'waveform':torch.arange(1000,dtype=torch.float32).reshape(1,1,1000),
+}
+with patch.object(finite,'_locked_audio_pcm',return_value=one_second_pcm):
+    padded=finite._locked_audio_interval(locked_slice_plan)
+assert padded['waveform'].shape[-1]==round(56/24*1000)
+assert torch.equal(padded['waveform'][...,:1000],one_second_pcm['waveform'])
+assert torch.count_nonzero(padded['waveform'][...,1000:])==0
+locked_slice_plan['timeline']['selection']={'start':.25,'duration':5/24}
+locked_slice_plan['length']=5
+with patch.object(finite,'_locked_audio_pcm',return_value=one_second_pcm):
+    sliced=finite._locked_audio_interval(locked_slice_plan)
+expected_samples=round(5/24*1000)
+assert torch.equal(
+    sliced['waveform'], one_second_pcm['waveform'][...,250:250+expected_samples],
+)
+
+from comfy.nested_tensor import NestedTensor
+target={'samples':NestedTensor((torch.zeros(1,24,7,2,2),torch.zeros(1,32,2,12)))}
+encoded={'samples':torch.ones(1,32,2,14)}
+locked_latent=finite.MiniMaxH3LockAudioLatent.execute(target,encoded)[0]
+video_stream,audio_stream=locked_latent['samples'].unbind()
+video_mask,audio_mask=locked_latent['noise_mask'].unbind()
+assert audio_stream.shape[-1]==12 and torch.all(audio_stream==1)
+assert torch.all(video_mask==1) and torch.all(audio_mask==0)
 images=torch.zeros(39,2,2,3);audio={'sample_rate':24000,'waveform':torch.ones(1,1,39000)}
 out=finite.MiniMaxH3FiniteSegmentFinalize.execute({},images,2,0,True,audio)
 assert out[1].shape[0]==39 and out[2]['waveform'].shape[-1]==39000

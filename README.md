@@ -2,7 +2,7 @@
 
 Start with the [**MiniMaxH3 All-in-One Full Timeline Director workflow**](example_workflows/MiniMaxH3全功能合一完全体导演台工作流.json):
 one lightweight graph covers text-to-video, image reference, audio-driven generation, video editing,
-character replacement, motion transfer, digital humans, and manually segmented long-video generation.
+character replacement, motion transfer, digital humans, and manually segmented long-video generation. It now also supports **long-form digital humans and character singing**: a reference image preserves identity while a locked long soundtrack is sample-sliced across GEN windows, injected into every segment's AV latent, and restored continuously in the final output.
 
 [简体中文](README_CN.md) · English
 
@@ -51,6 +51,8 @@ An editable reference-media timeline for ComfyUI's native **MiniMax H3 Reference
 - Only media intersecting the cyan generation range participates in the current reference or Guide plan.
 - Three per-clip modes: `Fixed Guide`, `Editable Reference`, and `Boundary Only`.
 - Native text-to-video: with no uploaded media and no segment windows, Finite Segment Sampling internally creates a standard empty H3 AV latent from the Global Prompt and current GEN duration. Manual windows extend the same path to long-form T2V.
+- Long-form digital humans and singing: assign the character image to each segment and mark one long soundtrack as `Locked Original Audio`. Manual GEN windows then drive multi-segment lip-sync or singing; the source is decoded once, sliced by exact sample position, injected into each AV latent with a zero audio-denoise mask, and restored as the continuous final soundtrack.
+- Automatic locked-audio fitting: shorter timelines truncate the source, while timelines extending past the source preserve all available audio and pad only the excess with silence. Users do not need to frame-match MP3 metadata, H3-valid durations, or codec priming delays.
 - Bound source audio follows video edits and can be disabled independently.
 - Silent low-resolution monitoring proxies up to `480×270 / 12fps`.
 - Multi-select, external file drop, deletion, and drag reordering for image/audio bins.
@@ -115,7 +117,7 @@ This is the **all-task, lightweight, no-rewiring** workflow. Configure only the 
 - Single-segment image-reference generation.
 - Multi-segment image-reference generation.
 - Single-segment image-and-audio reference generation.
-- Multi-segment image-and-audio generation and digital-human lip sync.
+- Multi-segment image-and-audio generation, long-form digital-human lip sync, and long-form character singing; use `Locked Original Audio` when the source signal must remain unchanged.
 - Single-segment editable-video reference, character replacement, and motion transfer.
 - Manually segmented long-video reference generation, character replacement, motion transfer, and final AV assembly.
 

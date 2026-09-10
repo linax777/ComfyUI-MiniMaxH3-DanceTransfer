@@ -94,7 +94,7 @@ def main():
     latent = {
         "samples": (
             torch.zeros(video_shape, dtype=torch.float32),
-            torch.zeros((1, 2, 2, 8), dtype=torch.float32),
+            torch.zeros((1, 1, 1, 17), dtype=torch.float32),
         )
     }
     patched = drift.install_drift_control_av_model(
@@ -113,6 +113,8 @@ def main():
 
     assert state.apply_model_wrapper(executor, input="x") == "ok"
     assert torch.equal(captured["denoise_mask"], state.current_video_mask)
+    assert torch.equal(captured["audio_denoise_mask"], state.current_audio_mask)
+    assert state.current_audio_mask.shape == (1, 1, 1, 17)
     print("drift control AV smoke test: PASS")
 
 

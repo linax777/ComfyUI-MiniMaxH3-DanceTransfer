@@ -12,6 +12,9 @@ from .minimax_h3_finite_segments import (
     MiniMaxH3FiniteOutputTrim,
     MiniMaxH3FiniteSegmentFinalize,
     MiniMaxH3FiniteSegmentSampler,
+    MiniMaxH3LockedAudioSlice,
+    MiniMaxH3LockAudioLatent,
+    MiniMaxH3LockedAudioMaster,
 )
 
 NODE_CLASS_MAPPINGS = {
@@ -24,6 +27,9 @@ NODE_CLASS_MAPPINGS = {
     "MiniMaxH3FiniteOutputTrim": MiniMaxH3FiniteOutputTrim,
     "MiniMaxH3FiniteLatentContinuation": MiniMaxH3FiniteLatentContinuation,
     "MiniMaxH3FiniteSegmentFinalize": MiniMaxH3FiniteSegmentFinalize,
+    "MiniMaxH3LockedAudioSlice": MiniMaxH3LockedAudioSlice,
+    "MiniMaxH3LockAudioLatent": MiniMaxH3LockAudioLatent,
+    "MiniMaxH3LockedAudioMaster": MiniMaxH3LockedAudioMaster,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -36,6 +42,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "MiniMaxH3FiniteOutputTrim": "MiniMax H3 Finite Output Trim (Internal)",
     "MiniMaxH3FiniteLatentContinuation": "MiniMax H3 Finite Latent Continuation (Internal)",
     "MiniMaxH3FiniteSegmentFinalize": "MiniMax H3 Finite Segment Finalize (Internal)",
+    "MiniMaxH3LockedAudioSlice": "MiniMax H3 Locked Audio Slice (Internal)",
+    "MiniMaxH3LockAudioLatent": "MiniMax H3 Lock Audio Latent (Internal)",
+    "MiniMaxH3LockedAudioMaster": "MiniMax H3 Locked Audio Master (Internal)",
 }
 
 WEB_DIRECTORY = "./js"

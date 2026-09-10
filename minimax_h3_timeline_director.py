@@ -552,6 +552,19 @@ def _decode_audio(path: Path, start: float = 0.0, duration: float | None = None)
     return {"waveform": tensor, "sample_rate": target_rate}
 
 
+def _audio_mode(asset: dict[str, Any]) -> str:
+    """Normalize persisted audio-card behavior without breaking older workflows."""
+
+    return "locked" if str(asset.get("audioMode") or "").lower() == "locked" else "reference"
+
+
+def _locked_audio_assets(timeline: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        asset for asset in timeline.get("audios", [])
+        if isinstance(asset, dict) and asset.get("file") and _audio_mode(asset) == "locked"
+    ]
+
+
 def _empty_audio(sample_rate: int = 44100) -> dict[str, Any]:
     return {"waveform": torch.zeros((1, 1, 1), dtype=torch.float32), "sample_rate": sample_rate}
 
@@ -988,6 +1001,8 @@ def _plan_prompt_media(plan: dict[str, Any]) -> tuple[list[Any], list[Any], list
             break
         if not isinstance(asset, dict) or not asset.get("file"):
             continue
+        if _audio_mode(asset) == "locked":
+            continue
         audio = _decode_audio(
             _safe_input_path(str(asset["file"])),
             max(0.0, _float(asset.get("trimStart"))),
@@ -1077,9 +1092,19 @@ def _reference_manifest(plan: dict[str, Any]) -> str:
     for asset in timeline.get("audios", []):
         if audio_index >= MAX_REF_AUDIOS:
             break
-        if isinstance(asset, dict) and asset.get("file"):
+        if (
+            isinstance(asset, dict) and asset.get("file")
+            and _audio_mode(asset) != "locked"
+        ):
             audio_index += 1
             lines.append(f"<Audio {audio_index}> = standalone audio {asset.get('name') or Path(str(asset['file'])).name}")
+    locked = _locked_audio_assets(timeline)
+    if locked:
+        lines.append(
+            "Locked target soundtrack = "
+            + ", ".join(str(asset.get("name") or Path(str(asset["file"])).name) for asset in locked)
+            + " (not assigned an <Audio N> reference label)"
+        )
     for video_index, spec in enumerate(video_specs, 1):
         if spec["has_audio"]:
             audio_index += 1
@@ -1297,6 +1322,11 @@ def _build_references(
         if len(ref_audios) >= MAX_REF_AUDIOS:
             break
         if not isinstance(asset, dict) or not asset.get("file"):
+            continue
+        # Locked soundtrack assets are target AV content, not prompt-addressable
+        # H3 reference audio. Finite Segment Sampling injects their encoded slice
+        # into the target audio stream and fixes its denoise mask to zero.
+        if _audio_mode(asset) == "locked":
             continue
         start = max(0.0, _float(asset.get("trimStart")))
         duration = _float(asset.get("duration")) or None
