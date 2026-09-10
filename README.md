@@ -1,79 +1,52 @@
-# ComfyUI MiniMax H3 Dance Transfer
+# ComfyUI MiniMax H3 Dance Transfer — Motion-First Character Replacement
 
-[简体中文](README_CN.md) · English
+[Traditional Chinese](README_CN.md) · English
 
-## Headline feature: lightweight unlimited-length video generation
+Dance and performance transfer nodes for ComfyUI's native **MiniMax H3 Reference to Video** workflow. This fork is designed to preserve the choreography, timing, body motion, and camera language of an original RGB performance while replacing the performer and maintaining identity, clothing, background, and lighting across multiple generated segments.
 
-The plugin splits any target duration into continuous segments and completes them in one ComfyUI
-execution: per-segment generation with one shared seed, direct continuation from the previous
-AV-latent tail, adaptive Drift-Control video masking, Soft AV audio continuity, overlap removal, and final synchronized assembly. Extend the result by increasing
-the segment count—without generic Loop nodes or duplicated sampler chains. Practical length is limited
-only by local VRAM, RAM, disk space, and ComfyUI execution limits.
+## Project goal
 
-[Download unlimited-length workflow](example_workflows/MiniMax时间线插件内置有限分段工作流.json) ·
-[Chinese guide](docs/FINITE_SEGMENT_EXPANSION_CN.md) ·
-[Chinese prompt specification](docs/MiniMax_H3_循环分段提示词_Agent规范.md)
-
-[![Lightweight unlimited-length workflow](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector/releases/download/v0.6.0/infinite-workflow.webp)](example_workflows/MiniMax时间线插件内置有限分段工作流.json)
-
-### Two directly generated, approximately one-minute examples
-
-Both videos were produced in one plugin execution and are `52.625 seconds / 1263 frames / 24fps`.
-Click a poster to play or download the original MP4. All media is hosted as GitHub Release assets, so
-it adds nothing to the plugin clone or installation size.
-
-| Finite direct-latent continuation | References with a 48-frame overlap |
-| --- | --- |
-| [![Play example one](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector/releases/download/v0.6.0/case-finite-segments-60s.webp)](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector/releases/download/v0.6.0/H3_finite_segments_60s.mp4) | [![Play example two](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector/releases/download/v0.6.0/case-reference-overlap-60s.webp)](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector/releases/download/v0.6.0/H3_reference_overlap48_60s.mp4) |
-
-<p align="center">
-  <img src="docs/images/creator-wecom.webp" alt="Creator WeCom contact card" width="360">
-</p>
-
-<p align="center">
-  Creator: <strong>Shi Xiongsong</strong><br>
-  <a href="https://space.bilibili.com/219572544?spm_id_from=333.40164.0.0">Bilibili</a>
-  ·
-  <a href="https://www.youtube.com/@shixiongsong">YouTube</a>
-</p>
-
-An editable reference-media timeline for ComfyUI's native **MiniMax H3 Reference to Video** workflow. It brings reference videos, paired soundtracks, fixed Guides, standalone images, and standalone audio into one compact editing surface.
-
-> Video-generation agents should read the [Chinese segmented long-video guide](docs/AGENT_LONG_VIDEO_GUIDE_CN.md).
-
-## Highlights
-
-- Multi-clip timeline with move, trim, split, delete, snapping, and numeric positioning.
-- Only media intersecting the cyan generation range participates in the current reference or Guide plan.
-- Three per-clip modes: `Fixed Guide`, `Editable Reference`, and `Boundary Only`.
-- Native text-to-video when no image, video, or audio material is uploaded; the encoder creates the standard empty H3 AV latent from the prompt alone.
-- Bound source audio follows video edits and can be disabled independently.
-- Silent low-resolution monitoring proxies up to `480×270 / 12fps`.
-- Multi-select, external file drop, deletion, and drag reordering for image/audio bins.
-- Stable `<Picture N>`, `<Video N>`, and `<Audio N>` ordering from UI to H3 inputs.
-- Automatic long-reference segmentation for character replacement and lip-sync with one shared prompt.
-- Decode-time resizing to the node's `width × height` for VRAM protection.
-- Separate merged outputs for timeline soundtracks and standalone reference audio.
-- Timeline state is serialized into the ComfyUI workflow JSON.
-
-## Included nodes
-
-| Node | Purpose |
-| --- | --- |
-| **MiniMax H3 Dance Material Planner** | Edits media and outputs a compact H3 plan plus an ordered Omni media bundle. |
-| **MiniMax H3 Dance Omni Media Prompt Bridge** | Sends the bundle to an installed Prompt Rewriter Omni backend and returns only `rewritten_prompt`. |
-| **MiniMax H3 Dance Plan Encoder** | Combines the plan, prompt, CLIP, and VAEs into H3 conditioning and latent outputs. |
-| **MiniMax H3 Dance Finite Segment Expansion** | Creates a lightweight long-video plan from prompt/material ordinals without sampling. |
-| **MiniMax H3 Dance Long Reference Auto Segmentation** | Uses the Material Planner duration to slice one long video and synchronized audio while preserving the selected video purpose and reusing one prompt. |
-| **MiniMax H3 Dance Finite Segment Sampler** | Expands an acyclic graph for direct-latent continuation, masking, sampling, deduplication, and assembly. |
-| **MiniMax H3 Dance Timeline Director** | Provides the original all-in-one material-planning and encoding interface. Workflows saved before the namespace rename must migrate their node types. |
-
-The split architecture avoids a ComfyUI dependency cycle:
+The project separates two conditioning responsibilities that should not compete with each other:
 
 ```text
-MiniMax H3 Dance Material Planner ──Omni bundle──> MiniMax H3 Dance Omni Media Prompt Bridge ──rewritten_prompt──> MiniMax H3 Dance Plan Encoder
-       └──────────────────────────────────────H3 plan────────────────────────────────────────────────────────────> MiniMax H3 Dance Plan Encoder
+Original dance RGB segment ──> choreography, timing, pose, and camera motion
+Previous generated tail  ──> identity, clothing, background, lighting, and seam continuity
 ```
+
+The original source interval always remains the primary motion reference. Previous generated context stabilizes the beginning of the next segment and can taper away so it does not replace or override the source choreography.
+
+The default requested continuation context is **24 RGB frames at 24 fps**. It is aligned to MiniMax H3's legal temporal grid during execution. Version 1 deliberately stays RGB-first and does not add Depth or DWPose conditioning.
+
+## What this fork adds
+
+- Motion-first dance and performance transfer with source RGB kept as the authoritative motion guide.
+- Separate Dance Continuation controls for generated-tail context, tapering, strength, and optional experimental noise.
+- Direct AV-latent continuation without an RGB decode/re-encode round trip between segments.
+- Adaptive Drift-Control masking that preserves the seam-side latent while releasing the disposable prefix.
+- Soft AV audio continuation for smoother cross-segment sound transitions.
+- Automatic long-reference segmentation for character replacement and long-form lip sync.
+- Exact final trimming after H3 temporal-grid alignment and overlap removal.
+- A compact timeline for video, paired soundtrack, Guide, image, and standalone audio references.
+- A plugin-owned `MiniMaxH3Dance*` namespace that can coexist with the upstream Timeline Director.
+
+## Recommended workflow
+
+1. Load one RGB dance or performance video in **MiniMax H3 Dance Material Planner**.
+2. Choose `Editable Reference` when the performer should be replaced. `Fixed Guide` anchors the original pixels and usually prevents character replacement.
+3. Add identity images and, when needed, a standalone driving-audio track.
+4. Use **MiniMax H3 Dance Long Reference Auto Segmentation** for a complete source performance, or **MiniMax H3 Dance Finite Segment Expansion** for a manually planned long sequence.
+5. Connect the plan to **MiniMax H3 Dance Finite Segment Sampler** and enable Dance Continuation when cross-segment identity stability is required.
+6. Start with the default 24-frame context, compare against the baseline, and tune tapering only when the generated context begins to resist the source motion.
+
+For controlled comparison, begin with the [Dance Transfer A/B benchmark workflow](example_workflows/H3_DanceTransfer_AB_Test.json).
+
+## Examples
+
+These approximately one-minute examples were generated in one plugin execution. Each output is `52.625 seconds / 1263 frames / 24 fps`. The historical media files remain hosted as upstream GitHub Release assets and do not increase the clone size.
+
+| Direct latent continuation | Reference material with a 48-frame requested overlap |
+| --- | --- |
+| [![Play direct-latent example](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector/releases/download/v0.6.0/case-finite-segments-60s.webp)](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector/releases/download/v0.6.0/H3_finite_segments_60s.mp4) | [![Play reference-overlap example](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector/releases/download/v0.6.0/case-reference-overlap-60s.webp)](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector/releases/download/v0.6.0/H3_reference_overlap48_60s.mp4) |
 
 ## Installation
 
@@ -84,125 +57,71 @@ git clone https://github.com/linax777/ComfyUI-MiniMaxH3-DanceTransfer.git
 
 Restart ComfyUI and search for `MiniMax H3 Dance`.
 
-For workflows saved before the node namespace rename, follow the
-[node namespace migration guide](docs/NODE_NAMESPACE_MIGRATION.md).
-
-The source UI is English. Simplified Chinese is provided through ComfyUI's official localization
-system and follows the language selected in ComfyUI settings; restart or reload the frontend after
-changing the locale.
-
 ### Requirements
 
-- A recent ComfyUI build with the native MiniMax H3 nodes; `MiniMaxH3AddGuide` is additionally required only when Guides are used.
-- MiniMax H3 Ref2VA model, CLIP, video VAE, and audio VAE.
+- A recent ComfyUI build containing the native MiniMax H3 nodes.
+- `MiniMaxH3AddGuide` when Fixed Guide conditioning is used.
+- A MiniMax H3 Ref2VA model, CLIP, video VAE, and audio VAE.
 - Python 3.10 or newer.
 - ComfyUI's `imageio-ffmpeg` package for low-resolution preview proxies.
 
-No extra pip dependency is declared. The plugin uses PyAV, Pillow, NumPy, PyTorch, torchaudio, aiohttp, and imageio-ffmpeg normally included with a compatible ComfyUI installation.
+No additional pip dependency is declared. The plugin uses PyAV, Pillow, NumPy, PyTorch, torchaudio, aiohttp, and imageio-ffmpeg normally supplied by a compatible ComfyUI installation.
 
-## Example workflows
+## Included nodes
 
-### 1. Basic timeline workflow
+| Node | Purpose |
+| --- | --- |
+| **MiniMax H3 Dance Material Planner** | Edits reference media and produces an H3 plan plus an ordered Omni media bundle. |
+| **MiniMax H3 Dance Omni Media Prompt Bridge** | Sends the ordered bundle to an installed Prompt Rewriter Omni backend. |
+| **MiniMax H3 Dance Plan Encoder** | Converts the plan, prompt, CLIP, and VAEs into H3 conditioning and latent outputs. |
+| **MiniMax H3 Dance Long Reference Auto Segmentation** | Splits one long performance and synchronized audio into source-aligned generation windows. |
+| **MiniMax H3 Dance Finite Segment Expansion** | Builds a lightweight finite long-video plan without sampling. |
+| **MiniMax H3 Dance Finite Segment Sampler** | Expands the plan into direct-latent continuation, masking, sampling, overlap removal, and assembly. |
+| **MiniMax H3 Dance Timeline Director** | Provides the all-in-one timeline planning and encoding interface. |
 
-Uses **MiniMax H3 Dance Timeline Director** for direct timeline editing and H3 encoding. It retains the all-in-one interface; workflows saved before the namespace rename must follow the [node namespace migration guide](docs/NODE_NAMESPACE_MIGRATION.md).
+The split planner path avoids a ComfyUI dependency cycle:
 
-[Download workflow](example_workflows/MiniMax_H3基础时间线规划工作流.json)
+```text
+Material Planner ──Omni bundle──> Omni Media Prompt Bridge ──rewritten_prompt──> Plan Encoder
+       └──────────────────────── H3 plan ────────────────────────> Plan Encoder
+```
 
-![Basic timeline workflow](docs/images/workflow-basic.webp)
+## Included workflows
 
-### 2. Split planner and encoder
+- [Dance Transfer A/B benchmark](example_workflows/H3_DanceTransfer_AB_Test.json): compares the protected RGB baseline with Dance Continuation.
+- [Long-video motion transfer, character replacement, and digital-human workflow](example_workflows/MinimaxH3长视频动作迁移人物替换+长视频数字人工作流.json): automatically slices one source performance and optional long audio.
+- [Finite direct-latent continuation](example_workflows/MiniMax时间线插件内置有限分段工作流.json): creates a finite acyclic segment graph without generic Loop nodes.
+- [Basic timeline workflow](example_workflows/MiniMax_H3基础时间线规划工作流.json): uses the all-in-one Dance Timeline Director.
+- [Split planner and encoder](example_workflows/MiniMax_H3时间线规划拆分节点工作流.json): separates media planning from H3 encoding.
+- [Planning with prompt expansion](example_workflows/MiniMax_H3时间规划+Prompt提示词生成.json): integrates [MiniMax-H3-Prompt-Rewriter-ComfyUI](https://github.com/pytraveler/MiniMax-H3-Prompt-Rewriter-ComfyUI).
 
-Uses **MiniMax H3 Dance Material Planner + MiniMax H3 Dance Plan Encoder** to separate media preparation from H3 encoding.
+## Dance Continuation guidance
 
-[Download workflow](example_workflows/MiniMax_H3时间线规划拆分节点工作流.json)
+- Treat the original RGB segment and previous generated tail as different inputs with different jobs.
+- Do not globally convert source clips to Fixed Guide when Dance Continuation is enabled.
+- A requested 24-frame context may become a smaller aligned overlap because MiniMax H3 uses a legal temporal grid; all continuation, trimming, and assembly stages share the same aligned value.
+- Enable tapering when generated context holds identity well but suppresses a new movement at the segment boundary.
+- Every segment uses the sampling node's displayed seed.
+- `timeline_data` remains compatible; workflows saved before the node namespace rename only need their node types migrated.
 
-![Split planner and encoder workflow](docs/images/workflow-split.webp)
+See the [node namespace migration guide](docs/NODE_NAMESPACE_MIGRATION.md) for the complete old-to-new mapping.
 
-### 3. Timeline planning with prompt expansion
+## Scope and limitations
 
-Adds **MiniMax-H3 Prompt Rewriter Omni (sees and hears)** so the same ordered media can be inspected while producing an H3 prompt.
+- The primary target is single-person dance or performance transfer with character and background replacement.
+- Motion fidelity is prioritized over maximum segment duration.
+- Clean framing, visible limbs, stable frame rate, and consistent source lighting improve results.
+- Multi-person occlusion, abrupt cuts, extreme camera motion, and poor source compression remain difficult cases.
+- RGB motion transfer is the v1 baseline. Depth and DWPose are intentionally out of scope.
+- Generated-tail continuation improves consistency but cannot guarantee perfect identity or a seamless transition in every shot.
+- Real model acceptance should be performed in a complete ComfyUI environment before publishing a release tag.
 
-[Download workflow](example_workflows/MiniMax_H3时间规划+Prompt提示词生成.json)
+## Technical references and attribution
 
-![Timeline planning and prompt expansion workflow](docs/images/workflow-prompt.webp)
-
-> This workflow requires [MiniMax-H3-Prompt-Rewriter-ComfyUI](https://github.com/pytraveler/MiniMax-H3-Prompt-Rewriter-ComfyUI). Follow that project's instructions for model, quantization, and VRAM requirements.
-
-### 4. Plugin-owned unlimited-length video generation
-
-**MiniMax H3 Dance Finite Segment Expansion** only validates prompts, segment count, and media
-assignments; it performs no sampling. Connect its plan to **MiniMax H3 Dance Finite Segment Sampler**
-to build a standard acyclic graph for direct AV-latent continuation with adaptive Drift-Control video masking and Soft AV audio continuity,
-overlap removal, and ordered assembly. Every segment uses the same seed. No generic Loop nodes are required.
-
-[Download finite workflow](example_workflows/MiniMax时间线插件内置有限分段工作流.json) ·
-[Chinese guide](docs/FINITE_SEGMENT_EXPANSION_CN.md) ·
-[Chinese prompt specification](docs/MiniMax_H3_循环分段提示词_Agent规范.md)
-
-### Long-video character replacement and lip sync
-
-Place one complete long video in **MiniMax H3 Dance Material Planner**, or use identity pictures plus a standalone
-long driving-audio track without video. Connect the plan and one shared prompt to **MiniMax H3 Dance Long Reference Auto Segmentation**, then connect its output directly to **MiniMax H3 Dance Finite Segment Sampler**. **MiniMax H3 Dance Finite Segment Expansion** and manually repeated prompts are not required.
-
-The node does not use the cyan single-run selection as its total range. An image-plus-audio plan follows
-the longest standalone audio. When video and standalone audio coexist, the longer available duration sets
-the total range, and the shorter medium stops participating after it ends instead of being looped or frozen.
-At most one timeline video is accepted. Each segment inherits its generation duration from **MiniMax H3 Dance Material Planner**. Every video window
-preserves the source video's selected **Fixed Guide**, **Editable Reference**, or **Boundary Only** purpose.
-Use Editable Reference for character replacement; Fixed Guide intentionally anchors the original frames
-and will usually prevent replacement. Images retain their order in every segment. With **Slice Standalone
-Audio** enabled, long audio follows the same source offsets and overlaps for lip sync; when disabled,
-the full audio is reused in every segment as a short timbre reference.
-
-For example, a 60-second source with an approximately 10-second segment duration and a requested
-48-frame overlap becomes seven segments with H3's aligned 39-frame overlap. After assembly, any final
-H3-grid padding is trimmed back to the exact 1440-frame source duration. Picture, Video, and Audio
-ordinals restart at one in every segment, so the same prompt can be reused verbatim.
-
-[Long-video motion-transfer / character-replacement / digital-human example](example_workflows/MinimaxH3长视频动作迁移人物替换+长视频数字人工作流.json) ·
-[Chinese long-reference auto-segmentation guide](docs/LONG_REFERENCE_AUTO_SEGMENT_CN.md)
-
-## Basic usage
-
-1. Set `width`, `height`, and `generation_seconds`.
-2. Add video, image, and audio files using the toolbar or direct file drop.
-3. Move, trim, or split video clips, then place the cyan range over the interval to generate.
-4. Select a purpose for each video:
-   - `Fixed Guide` anchors the overlap at its generated-frame positions.
-   - `Editable Reference` sends it as `<Video N>` without hard-locking the original subject.
-   - `Boundary Only` anchors only the first and last overlap frames.
-5. Enable or disable paired video soundtracks as needed.
-6. Verify the reference labels at the bottom and run the connected encoder or prompt workflow.
-
-Videos are numbered left-to-right by their intersections with the cyan range. Standalone images and audio follow their visible bin order; drag reordering immediately updates the underlying H3 order.
-
-## Segmented long-video generation
-
-Generate long videos in overlapping segments. Use the previous segment's final shot as the next segment's opening Guide, and describe that overlap as `Shot 1` before new content. When assembling segments, remove the repeated Guide interval from the later segment. See the [Chinese agent guide](docs/AGENT_LONG_VIDEO_GUIDE_CN.md) for the full procedure.
-
-### Finite direct-latent continuation
-
-Finite sampling carries the previous sampled AV latent tail directly into the next opening and
-avoids an RGB decode/re-encode round trip. Drift-Control is always active and has no user-facing mode
-selector. The requested overlap is aligned down to H3's legal temporal grid (for example, 24 becomes
-22 and 48 becomes 39), and that same actual value drives latent carry, decoded trimming, and assembly.
-The mask adapts both to the aligned overlap's video-token count and to the connected sampler's sigma
-schedule, including accelerated 4-step and 8-step schedules. It dynamically re-noises only the disposable video prefix while keeping the seam-side
-latent clean. When audio continuation is enabled, the carried overlap stays exact until its final eight
-audio-latent ticks, where a half-cosine Soft AV mask releases it into newly generated sound. Assembly
-replaces the preceding audio tail with this incoming Soft AV overlap so the transition is retained in the final output. All segments use
-exactly the seed shown on the sampling node. The old generic-loop helper nodes and PR #15923 dependency
-have been removed.
-
-Drift-Control AV is adapted from
-[ComfyUI-MiniMaxH3-Contex-Loop](https://github.com/ethanfel/ComfyUI-MiniMaxH3-Contex-Loop)
-under GPL-3.0. It remains experimental and is intended for same-shot long-chain comparisons.
-
-## Credits
-
-- The Omni bridge and prompt-generation workflow reference and adapt [pytraveler/MiniMax-H3-Prompt-Rewriter-ComfyUI](https://github.com/pytraveler/MiniMax-H3-Prompt-Rewriter-ComfyUI).
-- See [MiniMax-AI/MiniMax-H3](https://github.com/MiniMax-AI/MiniMax-H3) for the official model and prompt guidance.
-- Thanks to the maintainers of ComfyUI's native MiniMax H3 and Guide nodes.
+- Based on the upstream [ComfyUI-MiniMaxH3-TimelineDirector](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector) baseline at `e4d6d5e`.
+- Drift-Control AV is adapted from [ComfyUI-MiniMaxH3-Contex-Loop](https://github.com/ethanfel/ComfyUI-MiniMaxH3-Contex-Loop) under GPL-3.0.
+- The Omni bridge and prompt workflow reference [MiniMax-H3-Prompt-Rewriter-ComfyUI](https://github.com/pytraveler/MiniMax-H3-Prompt-Rewriter-ComfyUI).
+- Official model and prompt guidance: [MiniMax-AI/MiniMax-H3](https://github.com/MiniMax-AI/MiniMax-H3).
 
 ## License
 

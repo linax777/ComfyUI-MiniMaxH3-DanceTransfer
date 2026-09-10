@@ -141,16 +141,19 @@ def test_fork_documentation_uses_dance_node_names_and_ids():
     assert all(name in readme for name in expected_english_display_names)
 
     chinese_readme = sources["README_CN.md"]
-    expected_chinese_display_names = {
-        "MiniMax H3 Dance 素材规划台",
-        "MiniMax H3 Dance Omni 素材包提示词桥",
-        "MiniMax H3 Dance 规划编码器",
-        "MiniMax H3 Dance 有限分段展开",
-        "MiniMax H3 Dance 长参考自动分段",
-        "MiniMax H3 Dance 有限分段采样",
-        "MiniMax H3 Dance 时间线导演台",
+    expected_traditional_chinese_display_names = {
+        "MiniMax H3 Dance 素材規劃台",
+        "MiniMax H3 Dance Omni 素材包提示詞橋",
+        "MiniMax H3 Dance 規劃編碼器",
+        "MiniMax H3 Dance 有限分段展開",
+        "MiniMax H3 Dance 長參考自動分段",
+        "MiniMax H3 Dance 有限分段採樣",
+        "MiniMax H3 Dance 時間軸導演台",
     }
-    assert all(name in chinese_readme for name in expected_chinese_display_names)
+    assert all(
+        name in chinese_readme
+        for name in expected_traditional_chinese_display_names
+    )
 
     assert "MiniMax H3 Dance 有限分段展开" in sources[
         "docs/FINITE_SEGMENT_EXPANSION_CN.md"
