@@ -253,6 +253,12 @@ def _prepare_long_reference_plan(
         "segment_count": segment_count,
         "requested_overlap_frames": int(overlap_frames),
         "overlap_frames": actual_overlap,
+        "requested_context_rgb_frames": (
+            dance_config.context_frames
+            if dance_config.enabled else int(overlap_frames)
+        ),
+        "effective_context_rgb_frames": source_overlap,
+        "aligned_context_rgb_frames": actual_overlap,
         "source_overlap_frames": source_overlap,
         "output_overlap_frames": context_timing.output_trim_frames,
         "effective_context_latent_ticks": context_timing.context_latent_ticks,
@@ -316,6 +322,12 @@ def _prepare_finite_plan(
         "segment_count": count,
         "requested_overlap_frames": int(overlap_frames),
         "overlap_frames": actual_overlap,
+        "requested_context_rgb_frames": (
+            dance_config.context_frames
+            if dance_config.enabled else int(overlap_frames)
+        ),
+        "effective_context_rgb_frames": context_timing.source_overlap_frames,
+        "aligned_context_rgb_frames": actual_overlap,
         "source_overlap_frames": context_timing.source_overlap_frames,
         "output_overlap_frames": context_timing.output_trim_frames,
         "effective_context_latent_ticks": context_timing.context_latent_ticks,
@@ -380,10 +392,20 @@ class MiniMaxH3FiniteSegmentExpansion(io.ComfyNode):
             bool(inject_continuity_instruction),
         )
         overlap = finite["overlap_frames"]
-        status = (
-            f"Planned {finite['segment_count']} segments; actual overlap is {overlap} frames "
-            f"({overlap / H3_FPS:.3f}s). This node performs no sampling."
-        )
+        if (finite.get("dance_continuation") or {}).get("enabled", False):
+            status = (
+                f"Planned {finite['segment_count']} segments; requested/effective RGB "
+                f"context is {finite['requested_context_rgb_frames']}/"
+                f"{finite['effective_context_rgb_frames']} frames; internal H3 context "
+                f"is {finite['aligned_context_rgb_frames']} aligned frames / "
+                f"{finite['effective_context_latent_ticks']} latent ticks. "
+                "This node performs no sampling."
+            )
+        else:
+            status = (
+                f"Planned {finite['segment_count']} segments; actual overlap is {overlap} frames "
+                f"({overlap / H3_FPS:.3f}s). This node performs no sampling."
+            )
         return io.NodeOutput(finite, overlap, status)
 
 
@@ -449,6 +471,14 @@ class MiniMaxH3LongReferenceSegmentPlan(io.ComfyNode):
             f"Actual overlap is {finite['overlap_frames']} frames; the final "
             f"{finite['trim_tail_frames']} excess tail frames will be removed."
         )
+        if (finite.get("dance_continuation") or {}).get("enabled", False):
+            status += (
+                f" Requested/effective RGB context is "
+                f"{finite['requested_context_rgb_frames']}/"
+                f"{finite['effective_context_rgb_frames']} frames; internal H3 context "
+                f"is {finite['aligned_context_rgb_frames']} aligned frames / "
+                f"{finite['effective_context_latent_ticks']} latent ticks."
+            )
         return io.NodeOutput(
             finite, finite["segment_count"], finite["overlap_frames"], status
         )
@@ -854,8 +884,18 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
             if continue_audio_latent
             else f"Drift-Control AV {overlap}-frame mask adapted to {steps} sampling steps; audio is independently generated"
         )
+        if dance_enabled:
+            context_status = (
+                f"requested/effective RGB context "
+                f"{finite['requested_context_rgb_frames']}/"
+                f"{finite['effective_context_rgb_frames']} frames; internal H3 context "
+                f"{finite['aligned_context_rgb_frames']} aligned frames / "
+                f"{finite['effective_context_latent_ticks']} latent ticks"
+            )
+        else:
+            context_status = f"actual overlap {overlap} frames"
         status = (
-            f"Expanded and sampled {finite['segment_count']} segments; actual overlap {overlap} frames; "
+            f"Expanded and sampled {finite['segment_count']} segments; {context_status}; "
             f"all segments use seed {int(seed)}; {mode_status}; "
             f"audio latent {'continues' if continue_audio_latent else 'does not continue'}."
         )

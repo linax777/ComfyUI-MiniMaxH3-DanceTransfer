@@ -280,6 +280,10 @@ def main():
         assert dance_plan["source_overlap_frames"] == 24
         assert dance_plan["output_overlap_frames"] == 24
         assert dance_plan["overlap_frames"] == 22
+        assert dance_plan["requested_context_rgb_frames"] == 24
+        assert dance_plan["effective_context_rgb_frames"] == 24
+        assert dance_plan["aligned_context_rgb_frames"] == 22
+        assert dance_plan["effective_context_latent_ticks"] == 7
         assert all(
             item["timeline"]["videoClips"][0]["referenceMode"] == source_mode
             for item in dance_plan["segment_plans"]

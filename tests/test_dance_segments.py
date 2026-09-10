@@ -300,6 +300,20 @@ def test_disabled_dance_timing_reproduces_legacy_overlap_alignment():
     assert timing.context_latent_ticks == 12
 
 
+@pytest.mark.parametrize(
+    ("requested_rgb_frames", "aligned_rgb_frames", "latent_ticks"),
+    [(12, 5, 2), (18, 5, 2), (22, 22, 7), (24, 22, 7),
+     (30, 22, 7), (36, 22, 7), (39, 39, 12)],
+)
+def test_rgb_context_sweep_preserves_request_while_deriving_h3_ticks(
+    requested_rgb_frames, aligned_rgb_frames, latent_ticks
+):
+    dance = load_dance_module()
+
+    assert dance.align_h3_context_frames(requested_rgb_frames) == aligned_rgb_frames
+    assert dance.rgb_frames_to_h3_latent_ticks(requested_rgb_frames) == latent_ticks
+
+
 def test_linear_context_strength_holds_then_releases():
     dance = load_dance_module()
 
