@@ -1438,7 +1438,7 @@ async def _request_json(request: web.Request) -> dict[str, Any]:
     return payload
 
 
-@PromptServer.instance.routes.post("/minimax_h3_timeline/media_info")
+@PromptServer.instance.routes.post("/minimax_h3_dance_timeline/media_info")
 async def media_info(request: web.Request) -> web.Response:
     acquired = False
     try:
@@ -1466,7 +1466,7 @@ async def media_info(request: web.Request) -> web.Response:
             _MEDIA_INFO_SEMAPHORE.release()
 
 
-@PromptServer.instance.routes.post("/minimax_h3_timeline/preview_proxy")
+@PromptServer.instance.routes.post("/minimax_h3_dance_timeline/preview_proxy")
 async def preview_proxy(request: web.Request) -> web.Response:
     """Return (and lazily create) the cached low-resolution monitoring proxy."""
 

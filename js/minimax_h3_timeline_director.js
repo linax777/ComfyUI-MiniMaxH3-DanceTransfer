@@ -3,13 +3,13 @@ import { api } from "/scripts/api.js";
 import { normalizeDanceContinuation } from "./dance_continuation_state.mjs";
 
 const TIMELINE_NODE_NAMES = new Set(["MiniMaxH3DanceTimelinePlanner", "MiniMaxH3DanceTimelineDirector"]);
-const STYLE_ID = "m3td-style";
+const STYLE_ID = "minimax-h3-dance-style";
 const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 const UPLOAD_SUBFOLDER = "minimax_h3_timeline_director";
 const DIRECTOR_HEIGHT = 674;
 
 const TIMELINE_EN = {
-  brandPlanner: "MiniMax H3 Material Planner", brandDirector: "MiniMax H3 Timeline Director (Compatibility)",
+  brandPlanner: "MiniMax H3 Dance Material Planner", brandDirector: "MiniMax H3 Dance Timeline Director (Compatibility)",
   addVideo: "＋ Video", addImage: "＋ Image", addAudio: "＋ Audio", splitAtPlayhead: "✂ Split at Playhead", deleteClip: "Delete Clip", ready: "Ready",
   selectionStart: "Selection start", referenceDuration: "Reference duration", zoom: "Zoom", fitAll: "Fit all", matchNearestGap: "Match nearest gap",
   materialSegments: "Material segments", updateSegments: "Update segments", timelineHelp: "Drag clips/playhead · Edge snapping · Selection duration = generation duration",
@@ -324,7 +324,7 @@ function viewURL(relative) {
 }
 
 class TimelineDirectorUI {
-  constructor(node, root, widget, brand = "MiniMax H3 Material Planner") {
+  constructor(node, root, widget, brand = "MiniMax H3 Dance Material Planner") {
     this.node = node;
     this.root = root;
     this.widget = widget;
@@ -864,7 +864,7 @@ class TimelineDirectorUI {
     const request = (async () => {
       this.previewEmpty.textContent = tr("proxyGenerating");
       this.setStatus(tr("proxyGeneratingStatus",{name:clip.name}));
-      const response = await api.fetchApi("/minimax_h3_timeline/preview_proxy", {
+      const response = await api.fetchApi("/minimax_h3_dance_timeline/preview_proxy", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({filename:clip.file}),
@@ -1352,7 +1352,7 @@ class TimelineDirectorUI {
       }
       const uploadedFile=uploadedRelativePath(uploadPayload);
       this.setStatus(tr("checking",{name:file.name}),0.75);
-      const infoResponse=await api.fetchApi("/minimax_h3_timeline/media_info",{
+      const infoResponse=await api.fetchApi("/minimax_h3_dance_timeline/media_info",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({filename:uploadedFile,kind}),

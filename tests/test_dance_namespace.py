@@ -246,3 +246,60 @@ def test_frontend_registers_a_dance_specific_extension_name():
     assert registration is not None
     assert registration.group(1) == "MiniMaxH3Dance.TimelineDirector"
     assert registration.group(1) != "MiniMaxH3.TimelineDirector"
+
+
+def test_media_routes_use_the_dance_http_namespace():
+    """Catch backend endpoints that would collide with an installed upstream plugin."""
+    timeline_source = RUNTIME_PATHS["timeline"].read_text(encoding="utf-8")
+    javascript = JAVASCRIPT_PATH.read_text(encoding="utf-8")
+    registered_post_routes = set(
+        re.findall(r'@PromptServer\.instance\.routes\.post\("([^"]+)"\)', timeline_source)
+    )
+
+    dance_routes = {
+        "/minimax_h3_dance_timeline/media_info",
+        "/minimax_h3_dance_timeline/preview_proxy",
+    }
+    upstream_routes = {
+        "/minimax_h3_timeline/media_info",
+        "/minimax_h3_timeline/preview_proxy",
+    }
+
+    assert dance_routes.issubset(registered_post_routes)
+    assert upstream_routes.isdisjoint(registered_post_routes)
+    assert all(f'api.fetchApi("{route}"' in javascript for route in dance_routes)
+    assert all(f'api.fetchApi("{route}"' not in javascript for route in upstream_routes)
+
+
+def test_frontend_brand_labels_use_the_dance_identity():
+    """Catch visible timeline branding that still presents this fork as upstream."""
+    javascript = JAVASCRIPT_PATH.read_text(encoding="utf-8")
+    locales = [
+        json.loads(LOCALE_PATHS[locale].read_text(encoding="utf-8"))
+        for locale in ("en_main", "zh_main")
+    ]
+    javascript_brands = re.search(
+        r'brandPlanner:\s*"([^"]+)",\s*brandDirector:\s*"([^"]+)"',
+        javascript,
+    )
+
+    assert javascript_brands is not None
+    assert all(label.startswith("MiniMax H3 Dance") for label in javascript_brands.groups())
+    assert all(
+        label.startswith("MiniMax H3 Dance")
+        for label in re.findall(r'"(MiniMax H3 [^"]+)"', javascript)
+    )
+    for locale in locales:
+        timeline = locale["MiniMaxH3DanceTimelineDirector"]["timeline"]
+        assert timeline["brandPlanner"].startswith("MiniMax H3 Dance")
+        assert timeline["brandDirector"].startswith("MiniMax H3 Dance")
+
+
+def test_frontend_style_element_uses_a_dance_specific_id():
+    """Catch a shared DOM style ID that lets upstream suppress this fork's CSS."""
+    javascript = JAVASCRIPT_PATH.read_text(encoding="utf-8")
+    style_id = re.search(r'const STYLE_ID = "([^"]+)";', javascript)
+
+    assert style_id is not None
+    assert style_id.group(1) == "minimax-h3-dance-style"
+    assert style_id.group(1) != "m3td-style"

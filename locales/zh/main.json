@@ -1,7 +1,7 @@
 {
   "MiniMaxH3DanceTimelineDirector": {
     "timeline": {
-      "brandPlanner": "MiniMax H3 素材规划台", "brandDirector": "MiniMax H3 时间线导演台（兼容）",
+      "brandPlanner": "MiniMax H3 Dance 素材规划台", "brandDirector": "MiniMax H3 Dance 时间线导演台（兼容）",
       "addVideo": "＋ 视频", "addImage": "＋ 图片", "addAudio": "＋ 音频", "splitAtPlayhead": "✂ 在播放头分段", "deleteClip": "删除片段", "ready": "就绪",
       "selectionStart": "选区起点", "referenceDuration": "参考时长", "zoom": "缩放", "fitAll": "适应全部", "matchNearestGap": "匹配最近空隙", "materialSegments": "素材分段", "updateSegments": "更新分段",
       "danceContinuation": "舞蹈連續", "enable": "啟用", "contextFrames": "上下文幀數", "taper": "漸弱", "taperFrames": "漸弱幀數", "startStrength": "起始強度", "endStrength": "結束強度", "experimentalNoise": "實驗性噪聲", "noiseStrength": "噪聲強度", "noiseTaperFrames": "噪聲漸弱幀數",

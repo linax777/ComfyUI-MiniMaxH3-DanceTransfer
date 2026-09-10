@@ -1,7 +1,7 @@
 {
   "MiniMaxH3DanceTimelineDirector": {
     "timeline": {
-      "brandPlanner": "MiniMax H3 Material Planner", "brandDirector": "MiniMax H3 Timeline Director (Compatibility)",
+      "brandPlanner": "MiniMax H3 Dance Material Planner", "brandDirector": "MiniMax H3 Dance Timeline Director (Compatibility)",
       "addVideo": "＋ Video", "addImage": "＋ Image", "addAudio": "＋ Audio", "splitAtPlayhead": "✂ Split at Playhead", "deleteClip": "Delete Clip", "ready": "Ready",
       "selectionStart": "Selection start", "referenceDuration": "Reference duration", "zoom": "Zoom", "fitAll": "Fit all", "matchNearestGap": "Match nearest gap", "materialSegments": "Material segments", "updateSegments": "Update segments",
       "danceContinuation": "Dance Continuation", "enable": "Enable", "contextFrames": "Context frames", "taper": "Taper", "taperFrames": "Taper frames", "startStrength": "Start strength", "endStrength": "End strength", "experimentalNoise": "Experimental noise", "noiseStrength": "Noise strength", "noiseTaperFrames": "Noise taper frames",

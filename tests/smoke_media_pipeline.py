@@ -53,8 +53,8 @@ def main() -> None:
         (route.method, route.path)
         for route in getattr(PromptServer.instance.routes, "_items", [])
     }
-    assert ("POST", "/minimax_h3_timeline/media_info") in registered_routes
-    assert ("POST", "/minimax_h3_timeline/preview_proxy") in registered_routes
+    assert ("POST", "/minimax_h3_dance_timeline/media_info") in registered_routes
+    assert ("POST", "/minimax_h3_dance_timeline/preview_proxy") in registered_routes
     assert not any(path == "/minimax_h3_timeline/upload_chunk" for _, path in registered_routes)
     assert not any(
         method == "GET" and path.startswith("/minimax_h3_timeline/")
