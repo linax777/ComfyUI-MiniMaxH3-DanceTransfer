@@ -117,17 +117,11 @@ def apply_dynamic_prefix_mask(
 
 
 class _DriftControlMaskState:
-    def __init__(
-        self, video_shape: tuple[int, ...], audio_shape: tuple[int, ...],
-        sigmas: Any, prefix_steps: int,
-    ):
+    def __init__(self, video_shape: tuple[int, ...], sigmas: Any, prefix_steps: int):
         self.video_shape = tuple(int(value) for value in video_shape)
-        self.audio_shape = tuple(int(value) for value in audio_shape)
         self.sigmas = _schedule_values(sigmas)
         self.prefix_steps = int(prefix_steps)
-        self.current_packed_mask: torch.Tensor | None = None
         self.current_video_mask: torch.Tensor | None = None
-        self.current_audio_mask: torch.Tensor | None = None
 
     def denoise_mask_function(
         self,
@@ -146,23 +140,12 @@ class _DriftControlMaskState:
             prefix_steps=self.prefix_steps,
             taper_steps=min(DRIFT_CONTROL_TAPER_STEPS, self.prefix_steps),
         )
-        # The sampler consumes the packed mask, while H3's diffusion model
-        # consumes separate video/audio masks. Preserve both views so a locked
-        # zero audio mask is not discarded by the dynamic video-prefix wrapper.
-        self.current_packed_mask = output
         self.current_video_mask = video_mask
-        video_elements = math.prod(self.video_shape[1:])
-        audio = output[..., video_elements:]
-        if int(audio.numel()) != math.prod(self.audio_shape):
-            raise ValueError("Drift-Control AV packed mask does not match its audio stream")
-        self.current_audio_mask = audio.reshape(self.audio_shape)[:, :1].clone()
         return output
 
     def apply_model_wrapper(self, executor, *args, **kwargs):
         if self.current_video_mask is not None:
             kwargs["denoise_mask"] = self.current_video_mask
-        if self.current_audio_mask is not None:
-            kwargs["audio_denoise_mask"] = self.current_audio_mask
         return executor(*args, **kwargs)
 
 
@@ -208,11 +191,7 @@ def install_drift_control_av_model(
 
     from comfy.patcher_extension import WrappersMP
 
-    if len(streams) < 2 or not torch.is_tensor(streams[1]):
-        raise ValueError("Drift-Control AV requires both video and audio latent streams")
-    state = _DriftControlMaskState(
-        tuple(streams[0].shape), tuple(streams[1].shape), sigmas, prefix_steps
-    )
+    state = _DriftControlMaskState(tuple(streams[0].shape), sigmas, prefix_steps)
     patched.set_model_denoise_mask_function(state.denoise_mask_function)
     patched.add_wrapper_with_key(
         WrappersMP.APPLY_MODEL,

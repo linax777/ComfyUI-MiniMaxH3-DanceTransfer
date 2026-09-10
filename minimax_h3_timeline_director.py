@@ -1,4 +1,4 @@
-"""Backend for the MiniMax H3 Timeline Director node.
+"""Backend for the MiniMax H3 Dance Timeline Director node.
 
 The UI stores an edit decision list (EDL) in ``timeline_data``.  At queue time
 this module resolves the current generation selection into H3 references and
@@ -42,8 +42,10 @@ from comfy_api.latest import io
 from comfy_extras import nodes_minimax_h3 as h3_nodes
 from server import PromptServer
 
+from .dance_namespace import DANCE_CATEGORIES, DANCE_NODE_IDS
 
-log = logging.getLogger("MiniMaxH3TimelineDirector")
+
+log = logging.getLogger("MiniMaxH3DanceTimelineDirector")
 FPS = 24.0
 MAX_REF_IMAGES = 9
 MAX_REF_VIDEOS = 3
@@ -552,19 +554,6 @@ def _decode_audio(path: Path, start: float = 0.0, duration: float | None = None)
     return {"waveform": tensor, "sample_rate": target_rate}
 
 
-def _audio_mode(asset: dict[str, Any]) -> str:
-    """Normalize persisted audio-card behavior without breaking older workflows."""
-
-    return "locked" if str(asset.get("audioMode") or "").lower() == "locked" else "reference"
-
-
-def _locked_audio_assets(timeline: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
-        asset for asset in timeline.get("audios", [])
-        if isinstance(asset, dict) and asset.get("file") and _audio_mode(asset) == "locked"
-    ]
-
-
 def _empty_audio(sample_rate: int = 44100) -> dict[str, Any]:
     return {"waveform": torch.zeros((1, 1, 1), dtype=torch.float32), "sample_rate": sample_rate}
 
@@ -918,9 +907,6 @@ def _timeline_for_prompt_index(
     result["audios"] = _ordered_segment_assets(
         list(result.get("audios") or []), selected.get("audios")
     )
-    if config.get("mode") == "timeline":
-        start, end = int(selected.get("startFrame", 0)), int(selected.get("endFrame", 5))
-        result["selection"] = {"start": start / FPS, "duration": (end - start) / FPS}
     return result, selected_index, segment_count
 
 
@@ -935,8 +921,6 @@ def _create_timeline_plan(
     )
     target_width, target_height = int(width), int(height)
     seconds = max(MIN_REF_VIDEO_SECONDS, _float(generation_seconds, 5.0))
-    if selected_segment is not None and timeline.get("segmentConfig", {}).get("mode") == "timeline":
-        seconds = timeline["selection"]["duration"]
     selection = timeline.setdefault("selection", {})
     selection["start"] = max(0.0, _float(selection.get("start")))
     # The visible duration widget is authoritative.  Persisting it into the
@@ -1000,8 +984,6 @@ def _plan_prompt_media(plan: dict[str, Any]) -> tuple[list[Any], list[Any], list
         if len(standalone_audios) >= MAX_REF_AUDIOS:
             break
         if not isinstance(asset, dict) or not asset.get("file"):
-            continue
-        if _audio_mode(asset) == "locked":
             continue
         audio = _decode_audio(
             _safe_input_path(str(asset["file"])),
@@ -1092,19 +1074,9 @@ def _reference_manifest(plan: dict[str, Any]) -> str:
     for asset in timeline.get("audios", []):
         if audio_index >= MAX_REF_AUDIOS:
             break
-        if (
-            isinstance(asset, dict) and asset.get("file")
-            and _audio_mode(asset) != "locked"
-        ):
+        if isinstance(asset, dict) and asset.get("file"):
             audio_index += 1
             lines.append(f"<Audio {audio_index}> = standalone audio {asset.get('name') or Path(str(asset['file'])).name}")
-    locked = _locked_audio_assets(timeline)
-    if locked:
-        lines.append(
-            "Locked target soundtrack = "
-            + ", ".join(str(asset.get("name") or Path(str(asset["file"])).name) for asset in locked)
-            + " (not assigned an <Audio N> reference label)"
-        )
     for video_index, spec in enumerate(video_specs, 1):
         if spec["has_audio"]:
             audio_index += 1
@@ -1323,11 +1295,6 @@ def _build_references(
             break
         if not isinstance(asset, dict) or not asset.get("file"):
             continue
-        # Locked soundtrack assets are target AV content, not prompt-addressable
-        # H3 reference audio. Finite Segment Sampling injects their encoded slice
-        # into the target audio stream and fixes its denoise mask to zero.
-        if _audio_mode(asset) == "locked":
-            continue
         start = max(0.0, _float(asset.get("trimStart")))
         duration = _float(asset.get("duration")) or None
         audio = _decode_audio(_safe_input_path(str(asset["file"])), start, duration)
@@ -1471,7 +1438,7 @@ async def _request_json(request: web.Request) -> dict[str, Any]:
     return payload
 
 
-@PromptServer.instance.routes.post("/minimax_h3_timeline/media_info")
+@PromptServer.instance.routes.post("/minimax_h3_dance_timeline/media_info")
 async def media_info(request: web.Request) -> web.Response:
     acquired = False
     try:
@@ -1499,7 +1466,7 @@ async def media_info(request: web.Request) -> web.Response:
             _MEDIA_INFO_SEMAPHORE.release()
 
 
-@PromptServer.instance.routes.post("/minimax_h3_timeline/preview_proxy")
+@PromptServer.instance.routes.post("/minimax_h3_dance_timeline/preview_proxy")
 async def preview_proxy(request: web.Request) -> web.Response:
     """Return (and lazily create) the cached low-resolution monitoring proxy."""
 
@@ -1558,19 +1525,19 @@ def _encode_timeline_plan(
     return conditioning, latent, video_audio_output, standalone_audio_output
 
 
-class MiniMaxH3TimelinePlanner(io.ComfyNode):
+class MiniMaxH3DanceTimelinePlanner(io.ComfyNode):
     """Editable material/guide plan which deliberately performs no H3 encode."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3TimelinePlanner",
-            display_name="MiniMax H3 Material Planner",
+            node_id=DANCE_NODE_IDS["timeline_planner"],
+            display_name="MiniMax H3 Dance Material Planner",
             description=(
                 "Edit a timeline and output a lightweight material plan. The plan may feed a prompt "
                 "rewriter before the rewritten prompt and same plan enter the H3 Plan Encoder, avoiding cycles."
             ),
-            category="model/conditioning/minimax",
+            category=DANCE_CATEGORIES["root"],
             inputs=[
                 io.Int.Input(
                     "prompt_index", display_name="Prompt Index", optional=True,
@@ -1590,7 +1557,6 @@ class MiniMaxH3TimelinePlanner(io.ComfyNode):
             outputs=[
                 TimelinePlan.Output(display_name="Material Plan"),
                 PromptMediaBundle.Output(display_name="Omni Media Bundle"),
-                io.Custom("MINIMAX_H3_FINITE_SEGMENT_PLAN").Output(display_name="Segment Plan"),
             ],
         )
 
@@ -1598,28 +1564,13 @@ class MiniMaxH3TimelinePlanner(io.ComfyNode):
     def execute(
         cls, width, height, generation_seconds, timeline_data="", prompt_index=None
     ) -> io.NodeOutput:
-        complete_plan = _create_timeline_plan(
-            timeline_data, width, height, generation_seconds, None
+        plan = _create_timeline_plan(
+            timeline_data, width, height, generation_seconds, prompt_index
         )
-        # The sampler validates prompts only when this output is actually used.
-        # Existing single-segment encoder/Omni workflows remain usable while editing.
-        selected_plan = complete_plan
-        config = complete_plan["timeline"].get("segmentConfig", {})
-        if prompt_index is not None:
-            selected_plan = _create_timeline_plan(
-                timeline_data, width, height, generation_seconds, prompt_index,
-            )
-        elif config.get("mode") == "timeline" and int(config.get("count", 0)) > 0:
-            selected_plan = _create_timeline_plan(
-                timeline_data, width, height, generation_seconds,
-                int(config.get("activeIndex", 0)) + 1,
-            )
-        return io.NodeOutput(
-            selected_plan, _create_prompt_media_bundle(selected_plan), complete_plan
-        )
+        return io.NodeOutput(plan, _create_prompt_media_bundle(plan))
 
 
-class MiniMaxH3OmniPromptBridge(io.ComfyNode):
+class MiniMaxH3DanceOmniPromptBridge(io.ComfyNode):
     """Run Prompt Rewriter Omni directly from the planner's ordered media bundle."""
 
     @classmethod
@@ -1627,13 +1578,13 @@ class MiniMaxH3OmniPromptBridge(io.ComfyNode):
         tasks, models, quantizations = _omni_schema_choices()
         default_task = "REF2AV" if "REF2AV" in tasks else tasks[0]
         return io.Schema(
-            node_id="MiniMaxH3OmniPromptBridge",
-            display_name="MiniMax H3 Omni Media Prompt Bridge",
+            node_id=DANCE_NODE_IDS["omni_prompt_bridge"],
+            display_name="MiniMax H3 Dance Omni Media Prompt Bridge",
             description=(
                 "Read the planner's ordered Omni media bundle and call the MiniMax-H3 Prompt Rewriter "
                 "Omni backend directly, without expanding or wiring individual media ports."
             ),
-            category="MiniMax-H3",
+            category=DANCE_CATEGORIES["root"],
             inputs=[
                 PROMPT_REWRITER_OPTIONS.Input("options", optional=True),
                 PromptMediaBundle.Input("media_bundle"),
@@ -1678,7 +1629,7 @@ class MiniMaxH3OmniPromptBridge(io.ComfyNode):
         warning = _omni_compatibility_warning()
         if warning:
             log.warning(warning)
-            print(f"[MiniMaxH3TimelineDirector] {warning}", flush=True)
+            print(f"[MiniMaxH3DanceTimelineDirector] {warning}", flush=True)
         items = bundle["items"]
         try:
             max_references = int(module.MAX_REFERENCES)
@@ -1741,17 +1692,16 @@ class MiniMaxH3OmniPromptBridge(io.ComfyNode):
         return io.NodeOutput(rewritten)
 
 
-class MiniMaxH3TimelineEncoder(io.ComfyNode):
+class MiniMaxH3DanceTimelineEncoder(io.ComfyNode):
     """Encode a planner result only after an external prompt rewrite completes."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3TimelineEncoder",
-            is_dev_only=True,
-            display_name="MiniMax H3 Plan Encoder",
+            node_id=DANCE_NODE_IDS["timeline_encoder"],
+            display_name="MiniMax H3 Dance Plan Encoder",
             description="Encode a material plan and final H3 prompt into references, native Guides, conditioning, and AV latent.",
-            category="model/conditioning/minimax",
+            category=DANCE_CATEGORIES["root"],
             inputs=[
                 io.Clip.Input("clip"),
                 io.Vae.Input("vae"),
@@ -1782,17 +1732,17 @@ class MiniMaxH3TimelineEncoder(io.ComfyNode):
         return io.NodeOutput(conditioning, latent, video_audio, standalone_audio)
 
 
-class MiniMaxH3TimelineDirector(io.ComfyNode):
+class MiniMaxH3DanceTimelineDirector(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3TimelineDirector",
-            display_name="MiniMax H3 Timeline Director",
+            node_id=DANCE_NODE_IDS["timeline_director"],
+            display_name="MiniMax H3 Dance Timeline Director",
             description=(
                 "Assemble H3 references on an editable timeline. Overlapping video can use native Add Guide, "
                 "editable reference, or boundary-only mode; gaps automatically anchor their boundary frames."
             ),
-            category="model/conditioning/minimax",
+            category=DANCE_CATEGORIES["root"],
             inputs=[
                 io.Clip.Input("clip"),
                 io.Vae.Input("vae"),

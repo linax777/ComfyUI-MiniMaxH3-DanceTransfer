@@ -1,0 +1,96 @@
+{
+  "id": "h3-dance-transfer-ab-test-v1",
+  "revision": 0,
+  "last_node_id": 12,
+  "last_link_id": 13,
+  "nodes": [
+    {
+      "id": 1, "type": "UNETLoader", "pos": [0, 0], "size": [360, 82], "flags": {}, "order": 0, "mode": 0, "inputs": [],
+      "outputs": [{"name": "MODEL", "type": "MODEL", "links": [1]}],
+      "properties": {"Node name for S&R": "UNETLoader"},
+      "widgets_values": ["minimax_h3_ref2va_int8_convrot.safetensors", "default"],
+      "widgets_values_named": {"unet_name": "minimax_h3_ref2va_int8_convrot.safetensors", "weight_dtype": "default"}
+    },
+    {
+      "id": 2, "type": "CLIPLoader", "pos": [0, 120], "size": [360, 106], "flags": {}, "order": 1, "mode": 0, "inputs": [],
+      "outputs": [{"name": "CLIP", "type": "CLIP", "links": [2]}],
+      "properties": {"Node name for S&R": "CLIPLoader"},
+      "widgets_values": ["minimax_h3/qwen3vl_32b_minimax_h3_int8_convrot.safetensors", "minimax", "default"],
+      "widgets_values_named": {"clip_name": "minimax_h3/qwen3vl_32b_minimax_h3_int8_convrot.safetensors", "type": "minimax", "device": "default"}
+    },
+    {
+      "id": 3, "type": "VAELoader", "pos": [0, 260], "size": [360, 82], "flags": {}, "order": 2, "mode": 0, "inputs": [],
+      "outputs": [{"name": "VAE", "type": "VAE", "links": [3]}],
+      "properties": {"Node name for S&R": "VAELoader"},
+      "widgets_values": ["minimax_h3_video_vae_fp16.safetensors"],
+      "widgets_values_named": {"vae_name": "minimax_h3_video_vae_fp16.safetensors"}
+    },
+    {
+      "id": 4, "type": "VAELoader", "pos": [0, 370], "size": [360, 82], "flags": {}, "order": 3, "mode": 0, "inputs": [],
+      "outputs": [{"name": "VAE", "type": "VAE", "links": [4]}],
+      "properties": {"Node name for S&R": "VAELoader"},
+      "widgets_values": ["minimax_h3_audio_vae_fp32.safetensors"],
+      "widgets_values_named": {"vae_name": "minimax_h3_audio_vae_fp32.safetensors"}
+    },
+    {
+      "id": 5, "type": "MiniMaxH3SigmaShift", "pos": [400, 0], "size": [300, 82], "flags": {}, "order": 4, "mode": 0,
+      "inputs": [{"name": "model", "type": "MODEL", "link": 1}],
+      "outputs": [{"name": "MODEL", "type": "MODEL", "links": [5, 6]}],
+      "properties": {"Node name for S&R": "MiniMaxH3SigmaShift"},
+      "widgets_values": [12, 3], "widgets_values_named": {"shift_video": 12, "shift_audio": 3}
+    },
+    {
+      "id": 6, "type": "BasicScheduler", "pos": [740, 0], "size": [300, 140], "flags": {}, "order": 5, "mode": 0,
+      "inputs": [{"name": "model", "type": "MODEL", "link": 5}],
+      "outputs": [{"name": "SIGMAS", "type": "SIGMAS", "links": [7]}],
+      "properties": {"Node name for S&R": "BasicScheduler"},
+      "widgets_values": ["simple", 8, 1], "widgets_values_named": {"scheduler": "simple", "steps": 8, "denoise": 1}
+    },
+    {
+      "id": 7, "type": "KSamplerSelect", "pos": [740, 180], "size": [300, 82], "flags": {}, "order": 6, "mode": 0, "inputs": [],
+      "outputs": [{"name": "SAMPLER", "type": "SAMPLER", "links": [8]}],
+      "properties": {"Node name for S&R": "KSamplerSelect"},
+      "widgets_values": ["euler"], "widgets_values_named": {"sampler_name": "euler"}
+    },
+    {
+      "id": 8, "type": "MiniMaxH3DanceTimelinePlanner", "pos": [0, 520], "size": [1120, 760], "flags": {}, "order": 7, "mode": 0,
+      "inputs": [{"name": "prompt_index", "shape": 7, "type": "INT", "link": null}],
+      "outputs": [{"name": "Material Plan", "type": "MINIMAX_H3_TIMELINE_PLAN", "links": [9]}, {"name": "Omni Media Bundle", "type": "MINIMAX_H3_OMNI_MEDIA_BUNDLE", "links": null}],
+      "properties": {"aux_id": "linax777/ComfyUI-MiniMaxH3-DanceTransfer", "Node name for S&R": "MiniMaxH3DanceTimelinePlanner"},
+      "widgets_values": [640, 960, 8, "{\"version\":5,\"fps\":24,\"selection\":{\"start\":0,\"duration\":8},\"videoAudioEnabled\":true,\"videoClips\":[{\"id\":\"source-dance\",\"file\":\"dance_source.mp4\",\"name\":\"REPLACE: dance_source.mp4\",\"start\":0,\"duration\":24,\"trimStart\":0,\"sourceDuration\":24,\"hasAudio\":true,\"referenceMode\":\"edit\"}],\"images\":[{\"id\":\"character-reference\",\"file\":\"character_reference.png\",\"name\":\"REPLACE: character_reference.png\",\"width\":1024,\"height\":1536},{\"id\":\"background-reference\",\"file\":\"background_reference.png\",\"name\":\"OPTIONAL: background_reference.png\",\"width\":1024,\"height\":1024}],\"audios\":[],\"segmentConfig\":{\"count\":0,\"segments\":[]},\"danceContinuation\":{\"enabled\":true,\"contextFrames\":24,\"taperEnabled\":true,\"taperFrames\":12,\"startStrength\":1,\"endStrength\":0,\"contextNoiseEnabled\":false,\"contextNoiseStrength\":0,\"contextNoiseTaperFrames\":4}}", ""],
+      "widgets_values_named": {"width": 640, "height": 960, "generation_seconds": 8, "timeline_data": "{\"version\":5,\"fps\":24,\"selection\":{\"start\":0,\"duration\":8},\"videoAudioEnabled\":true,\"videoClips\":[{\"id\":\"source-dance\",\"file\":\"dance_source.mp4\",\"name\":\"REPLACE: dance_source.mp4\",\"start\":0,\"duration\":24,\"trimStart\":0,\"sourceDuration\":24,\"hasAudio\":true,\"referenceMode\":\"edit\"}],\"images\":[{\"id\":\"character-reference\",\"file\":\"character_reference.png\",\"name\":\"REPLACE: character_reference.png\",\"width\":1024,\"height\":1536},{\"id\":\"background-reference\",\"file\":\"background_reference.png\",\"name\":\"OPTIONAL: background_reference.png\",\"width\":1024,\"height\":1024}],\"audios\":[],\"segmentConfig\":{\"count\":0,\"segments\":[]},\"danceContinuation\":{\"enabled\":true,\"contextFrames\":24,\"taperEnabled\":true,\"taperFrames\":12,\"startStrength\":1,\"endStrength\":0,\"contextNoiseEnabled\":false,\"contextNoiseStrength\":0,\"contextNoiseTaperFrames\":4}}", "minimax_h3_timeline": ""}
+    },
+    {
+      "id": 9, "type": "MiniMaxH3DanceLongReferenceSegmentPlan", "pos": [1160, 520], "size": [480, 520], "flags": {}, "order": 8, "mode": 0,
+      "inputs": [{"name": "plan", "type": "MINIMAX_H3_TIMELINE_PLAN", "link": 9}],
+      "outputs": [{"name": "Finite Segment Plan", "type": "MINIMAX_H3_FINITE_SEGMENT_PLAN", "links": [10]}, {"name": "Segment Count", "type": "INT", "links": []}, {"name": "Actual Overlap Frames", "type": "INT", "links": []}, {"name": "Planning Status", "type": "STRING", "links": []}],
+      "properties": {"aux_id": "linax777/ComfyUI-MiniMaxH3-DanceTransfer", "Node name for S&R": "MiniMaxH3DanceLongReferenceSegmentPlan"},
+      "widgets_values": ["subject_definitions:\n<Subject 1> is the replacement dancer from <Picture 1>. <Picture 2> optionally defines the target background. <Video 1> is the authoritative choreography, timing, pose, and camera source.\n\nsummary:\n[video editing + reference generation] Replace only the dancer in <Video 1> with <Subject 1>, preserving the source choreography and camera motion.\n\ndetailed_description:\n[Shot 1] Follow every arm, leg, hip, torso, turn, jump, crouch, occlusion, and camera movement from <Video 1>. Preserve identity, clothing, and background consistently across the segment.\n\noverall_soundscape:\nPreserve source timing and synchronized physical sounds.\n\nnon_diegetic_music:\nPreserve source music when present.", 48, true],
+      "widgets_values_named": {"prompt": "subject_definitions:\n<Subject 1> is the replacement dancer from <Picture 1>. <Picture 2> optionally defines the target background. <Video 1> is the authoritative choreography, timing, pose, and camera source.\n\nsummary:\n[video editing + reference generation] Replace only the dancer in <Video 1> with <Subject 1>, preserving the source choreography and camera motion.\n\ndetailed_description:\n[Shot 1] Follow every arm, leg, hip, torso, turn, jump, crouch, occlusion, and camera movement from <Video 1>. Preserve identity, clothing, and background consistently across the segment.\n\noverall_soundscape:\nPreserve source timing and synchronized physical sounds.\n\nnon_diegetic_music:\nPreserve source music when present.", "overlap_frames": 48, "slice_reference_audio": true}
+    },
+    {
+      "id": 10, "type": "MiniMaxH3DanceFiniteSegmentSampler", "pos": [1680, 0], "size": [560, 520], "flags": {}, "order": 9, "mode": 0,
+      "inputs": [{"name": "model", "type": "MODEL", "link": 6}, {"name": "clip", "type": "CLIP", "link": 2}, {"name": "vae", "type": "VAE", "link": 3}, {"name": "audio_vae", "type": "VAE", "link": 4}, {"name": "finite_plan", "type": "MINIMAX_H3_FINITE_SEGMENT_PLAN", "link": 10}, {"name": "sampler", "type": "SAMPLER", "link": 8}, {"name": "sigmas", "type": "SIGMAS", "link": 7}],
+      "outputs": [{"name": "Last Sampled Latent", "type": "LATENT", "links": null}, {"name": "Merged Frames", "type": "IMAGE", "links": [11]}, {"name": "Merged Audio", "type": "AUDIO", "links": [12]}, {"name": "Sampling Status", "type": "STRING", "links": null}],
+      "properties": {"aux_id": "linax777/ComfyUI-MiniMaxH3-DanceTransfer", "Node name for S&R": "MiniMaxH3DanceFiniteSegmentSampler"},
+      "widgets_values": [777, true, "match"], "widgets_values_named": {"seed": 777, "continue_audio_latent": true, "ref_image_size": "match"}
+    },
+    {
+      "id": 11, "type": "CreateVideo", "pos": [2280, 0], "size": [280, 126], "flags": {}, "order": 10, "mode": 0,
+      "inputs": [{"name": "images", "type": "IMAGE", "link": 11}, {"name": "audio", "shape": 7, "type": "AUDIO", "link": 12}],
+      "outputs": [{"name": "VIDEO", "type": "VIDEO", "links": [13]}],
+      "properties": {"Node name for S&R": "CreateVideo"},
+      "widgets_values": [24, 8, "sRGB"], "widgets_values_named": {"fps": 24, "bit_depth": 8, "color_space": "sRGB"}
+    },
+    {
+      "id": 12, "type": "SaveVideo", "pos": [2600, 0], "size": [520, 420], "flags": {}, "order": 11, "mode": 0,
+      "inputs": [{"name": "video", "type": "VIDEO", "link": 13}],
+      "outputs": [{"name": "video", "type": "VIDEO", "links": null}],
+      "properties": {"Node name for S&R": "SaveVideo"},
+      "widgets_values": ["video/H3_DanceTransfer_AB", "mp4", "h264", "auto", "auto"],
+      "widgets_values_named": {"filename_prefix": "video/H3_DanceTransfer_AB", "format": "mp4", "format.codec": "h264", "format.codec.encoding": "auto", "codec": "auto"}
+    }
+  ],
+  "links": [[1,1,0,5,0,"MODEL"],[2,2,0,10,1,"CLIP"],[3,3,0,10,2,"VAE"],[4,4,0,10,3,"VAE"],[5,5,0,6,0,"MODEL"],[6,5,0,10,0,"MODEL"],[7,6,0,10,6,"SIGMAS"],[8,7,0,10,5,"SAMPLER"],[9,8,0,9,0,"MINIMAX_H3_TIMELINE_PLAN"],[10,9,0,10,4,"MINIMAX_H3_FINITE_SEGMENT_PLAN"],[11,10,1,11,0,"IMAGE"],[12,10,2,11,1,"AUDIO"],[13,11,0,12,0,"VIDEO"]],
+  "groups": [], "config": {}, "extra": {"ds": {"scale": 0.75, "offset": [80, 240]}}, "version": 0.4
+}

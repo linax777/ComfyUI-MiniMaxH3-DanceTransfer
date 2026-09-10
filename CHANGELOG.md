@@ -8,19 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ### Added
 
-- Add a compact all-in-one workflow covering material-free T2V, image/audio reference generation, editable-video reference, character replacement, motion transfer, digital humans, and manually segmented long-form generation.
-- Support user-authored GEN windows, global or per-segment prompts, per-segment media assignments, seam overlap calculation, and final tail trimming directly in Material Planner plans.
-- Add long-form digital-human and character-singing generation with locked original audio. The soundtrack is encoded into every segment AV latent with a zero audio-denoise mask, while final assembly restores the continuous source waveform.
+- Add `MiniMax H3 Long Reference Auto Segmentation` for long-form character replacement and lip-sync workflows. It uses the Material Planner generation duration to slice long media, supports image-plus-audio plans without video, and uses the longer span when video and standalone audio coexist. Video windows preserve the selected Fixed Guide / Editable Reference / Boundary Only purpose; shorter media stops participating after it ends. One identical prompt is reused across all segments, and final H3 padding is trimmed back to the longest source span at 24fps.
+- Include a lightweight long-video motion-transfer, character-replacement, and digital-human example workflow using the automatic segmentation path.
 
 ### Changed
 
-- Simplify the primary long-video architecture to Material Planner → Finite Segment Sampling. Remove Long Reference Auto Segmentation, keep all segment boundaries user-authored, and hide Plan Encoder from the new-node menu while retaining it for internal expanded graphs and legacy workflows.
-- Consolidate the shipped examples to the all-in-one workflow and the Omni prompt-generation workflow, and rewrite both READMEs around these two entry points.
 - Make adaptive Drift-Control the only finite-segment video continuation path and remove the public continuation-mode selector. The mask derives its temporal prefix from the H3-aligned overlap selected by the user, preserves up to four clean-boundary taper steps, and follows the connected external sigma schedule, including accelerated 4-step and 8-step configurations. Continued audio uses Soft AV: its final eight latent ticks follow a half-cosine release, and assembly gives the incoming segment ownership of the same aligned overlap so the transition reaches the final soundtrack.
 - Use English as the base language for node definitions, tooltips, status messages, and the custom timeline UI. Add official ComfyUI `locales/en` and `locales/zh` resources; the dynamic timeline follows the active ComfyUI locale and safely falls back to English.
 - Simplify finite-segment sampling by removing the per-segment seed-increment and Guide-mask switches. Every segment now reuses the same seed.
-- Decode locked soundtracks once and slice cached PCM by exact sample position. Shorter timelines truncate automatically; timelines extending beyond the source pad only the excess with silence, avoiding MP3 seek/priming failures and frame-perfect duration requirements.
-- Replace the all-in-one example workflow with the updated Material Planner + Finite Segment Sampling version.
 
 ### Security
 

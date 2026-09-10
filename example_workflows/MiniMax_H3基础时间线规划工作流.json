@@ -1,8 +1,8 @@
 {
   "id": "42476cc0-ba47-4042-ad72-3802b573afb3",
   "revision": 0,
-  "last_node_id": 212,
-  "last_link_id": 384,
+  "last_node_id": 213,
+  "last_link_id": 391,
   "nodes": [
     {
       "id": 117,
@@ -43,7 +43,7 @@
         60
       ],
       "flags": {},
-      "order": 16,
+      "order": 14,
       "mode": 0,
       "inputs": [
         {
@@ -54,7 +54,7 @@
         {
           "name": "conditioning",
           "type": "CONDITIONING",
-          "link": 377
+          "link": 390
         }
       ],
       "outputs": [
@@ -200,7 +200,7 @@
           "name": "CLIP",
           "type": "CLIP",
           "links": [
-            374
+            385
           ]
         }
       ],
@@ -248,7 +248,7 @@
           "type": "VAE",
           "links": [
             251,
-            375
+            386
           ]
         }
       ],
@@ -292,7 +292,7 @@
           "type": "VAE",
           "links": [
             250,
-            376
+            387
           ]
         }
       ],
@@ -327,7 +327,7 @@
         326
       ],
       "flags": {},
-      "order": 17,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
@@ -353,7 +353,7 @@
         {
           "name": "latent_image",
           "type": "LATENT",
-          "link": 378
+          "link": 391
         }
       ],
       "outputs": [
@@ -555,7 +555,7 @@
         126
       ],
       "flags": {},
-      "order": 20,
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
@@ -609,7 +609,7 @@
       "flags": {
         "collapsed": false
       },
-      "order": 18,
+      "order": 16,
       "mode": 0,
       "inputs": [
         {
@@ -652,7 +652,7 @@
       "flags": {
         "collapsed": false
       },
-      "order": 19,
+      "order": 17,
       "mode": 0,
       "inputs": [
         {
@@ -703,7 +703,7 @@
           "type": "INT",
           "links": [
             285,
-            380
+            388
           ]
         },
         {
@@ -711,7 +711,7 @@
           "type": "INT",
           "links": [
             286,
-            381
+            389
           ]
         }
       ],
@@ -735,95 +735,57 @@
       "bgcolor": "#533"
     },
     {
-      "id": 203,
-      "type": "MiniMaxH3DanceTimelineEncoder",
+      "id": 92,
+      "type": "SaveVideo",
       "pos": [
-        -764.7449365178255,
-        5130.842342355562
+        730.9725267201007,
+        4921.523401704712
       ],
       "size": [
-        409.6587092821969,
-        178.01402071136908
+        706.4361757164115,
+        140.7198506477207
       ],
       "flags": {},
-      "order": 15,
+      "order": 19,
       "mode": 0,
       "inputs": [
         {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 374
-        },
-        {
-          "name": "vae",
-          "type": "VAE",
-          "link": 375
-        },
-        {
-          "name": "audio_vae",
-          "type": "VAE",
-          "link": 376
-        },
-        {
-          "name": "plan",
-          "type": "MINIMAX_H3_TIMELINE_PLAN",
-          "link": 371
-        },
-        {
-          "name": "prompt",
-          "type": "STRING",
-          "widget": {
-            "name": "prompt"
-          },
-          "link": 384
+          "name": "video",
+          "type": "VIDEO",
+          "link": 260
         }
       ],
       "outputs": [
         {
-          "name": "positive",
-          "type": "CONDITIONING",
-          "links": [
-            377
-          ]
-        },
-        {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            378
-          ]
-        },
-        {
-          "name": "视频原声合并",
-          "type": "AUDIO",
-          "links": null
-        },
-        {
-          "name": "独立音频合并",
-          "type": "AUDIO",
+          "name": "video",
+          "type": "VIDEO",
           "links": null
         }
       ],
       "properties": {
-        "aux_id": "linax777/ComfyUI-MiniMaxH3-DanceTransfer",
-        "ver": "bad313e7e1a7eb300a23aac9f094da63fb536430",
-        "Node name for S&R": "MiniMaxH3DanceTimelineEncoder"
+        "cnr_id": "comfy-core",
+        "ver": "0.29.0",
+        "Node name for S&R": "SaveVideo"
       },
       "widgets_values": [
-        "subject_definitions:\n<Subject 1> is the anthropomorphic pig character from <Picture 1>. He has pale pink skin covered with short fine bristles, a broad round face, a large pink snout, drooping pig ears, expressive brown eyes, sparse light-brown hair, and a slightly stocky humanoid body. He wears a faded grey hoodie beneath a weathered brown jacket, loose dark-grey trousers, worn beige sneakers, and a brown cross-body satchel. Preserve his exact facial identity, animal anatomy, body proportions, clothing layers, colors, footwear, satchel, and stylized cinematic 3D appearance in every shot and from every angle.\n<Subject 2> is the complete runway performance of the original female protagonist in <Video 1>, including her walking cycle, stride length, foot placement, arm swing, posture, head direction, body orientation, timing, screen position, and transitions between camera angles.\n<Video 1> is the source video for the target video edit. Its complete selected 7.08-second timeline, four-shot structure, runway environment, audience, lighting, camera movement, framing, shot-size changes, focus, pacing, reflections, and editing rhythm must remain unchanged.\n\nsummary:\n[video editing + reference generation] The target video is an edited version of the selected 0.00–7.08-second segment of <Video 1>. Replace only the original female protagonist with <Subject 1>, including her entire head, face, hair, neck, torso, arms, hands, legs, feet, clothing, and accessories. Transfer the original runway performance from <Subject 2> to <Subject 1> one-to-one. Preserve every other element of <Video 1> exactly, including all camera movements, cuts, shot sizes, runway geometry, spectators, flashes, stage lights, reflections, and timing.\n\nretention_analysis:\n<Subject 1> (appears throughout [Shot 1] to [Shot 4]): fully_preserved - retain the pig’s recognizable face, snout, ears, bristles, stocky proportions, grey hoodie, weathered brown jacket, dark trousers, worn sneakers, and brown cross-body satchel from <Picture 1>.\n<Subject 2> (appears throughout [Shot 1] to [Shot 4]): attribute_transfer - transfer the source protagonist’s complete walking performance, pose sequence, timing, foot contacts, arm motion, head direction, and screen trajectory to <Subject 1>, while completely removing the original protagonist’s identity, body, hair, dress, tights, boots, and accessories.\n<Video 1> (complete selected segment): partially_preserved - preserve the complete four-shot structure, cuts, camera movement, shot-size transitions, runway, audience, lighting, focus, reflections, and pacing; change only the main protagonist.\n\ndetailed_description:\nThe target is a precise character-replacement edit lasting exactly 7.08 seconds. Preserve <Video 1>’s cinematic fashion-runway style, 16:9 composition, frame rate, color grading, contrast, depth of field, and temporal rhythm. Do not redesign, reinterpret, extend, shorten, or reorder the source footage.\n\n[Shot 1] Reproduce the exact opening full-body frontal runway shot from <Video 1>. Completely replace the original woman with <Subject 1>. The pig walks directly toward the camera along the glossy black catwalk, matching the original protagonist’s exact starting position, walking speed, stride rhythm, footfalls, upright posture, arm swing, head direction, and screen trajectory. Keep the runway’s bright white edge lights, vertical light panels, overhead spotlights, seated audience, camera flashes, floor reflections, and frontal camera movement unchanged. Scale the pig uniformly to occupy the original protagonist’s approximate on-screen height without stretching his stocky proportions. His jacket, hoodie, trousers, ears, short hair, and satchel produce restrained secondary motion corresponding to each step.\n\n[Shot 2] At 00:02.500, preserve the exact cut to the low-angle close-up of the protagonist’s lower body. Show <Subject 1>’s dark-grey trouser legs and worn beige sneakers replacing the original dress hem, tights, and platform boots. His feet reproduce the original crossing runway steps frame by frame, with identical heel-to-toe contacts, stride length, timing, direction, and position on the reflective floor. Retain the ground-level lateral tracking movement, audience placement, flash photography, runway reflections, focus depth, and motion blur exactly. The lower edge of his jacket and satchel may swing naturally into frame but must not obscure the original leg choreography.\n\n[Shot 3] At 00:04.375, preserve the exact cut to the side-profile medium shot. <Subject 1> continues walking in the same direction and at the same speed as the original protagonist. Match the source torso position, shoulder movement, arm swing, gaze direction, and profile trajectory. Clearly preserve his protruding snout, drooping ear, short bristles, grey hood, weathered jacket, and diagonal satchel strap from the side. Retain the camera’s parallel tracking movement, audience background, phone flashes, stage lighting, shallow depth of field, and composition without alteration.\n\n[Shot 4] At 00:06.333, preserve the exact cut to the frontal three-quarter medium shot and the following shot-size change from <Video 1>. <Subject 1> maintains the original walk, posture, facial direction, hand movement, and runway position. Match the source camera’s movement and its transition toward the wider final composition exactly. End at 00:07.080 on the same framing, runway position, lighting state, audience arrangement, and motion phase as the selected source segment.\n\nThroughout all shots, remove every visible fragment of the original woman. Do not retain her face, red-and-black hair, feminine body silhouette, black dress, belt, tights, boots, hands, or shadow. Do not create a hybrid human-pig face or place the pig’s head on the original body. Replace the complete character silhouette, clothing, limbs, footwear, accessories, reflections, and cast shadow. Maintain one stable pig identity with no face drift, costume changes, duplicated ears, extra limbs, extra fingers, deformation, flicker, or scale jumps.\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A",
-        "match"
+        "video/MiniMax_H3",
+        "auto",
+        "auto",
+        "auto"
       ],
       "widgets_values_named": {
-        "prompt": "subject_definitions:\n<Subject 1> is the anthropomorphic pig character from <Picture 1>. He has pale pink skin covered with short fine bristles, a broad round face, a large pink snout, drooping pig ears, expressive brown eyes, sparse light-brown hair, and a slightly stocky humanoid body. He wears a faded grey hoodie beneath a weathered brown jacket, loose dark-grey trousers, worn beige sneakers, and a brown cross-body satchel. Preserve his exact facial identity, animal anatomy, body proportions, clothing layers, colors, footwear, satchel, and stylized cinematic 3D appearance in every shot and from every angle.\n<Subject 2> is the complete runway performance of the original female protagonist in <Video 1>, including her walking cycle, stride length, foot placement, arm swing, posture, head direction, body orientation, timing, screen position, and transitions between camera angles.\n<Video 1> is the source video for the target video edit. Its complete selected 7.08-second timeline, four-shot structure, runway environment, audience, lighting, camera movement, framing, shot-size changes, focus, pacing, reflections, and editing rhythm must remain unchanged.\n\nsummary:\n[video editing + reference generation] The target video is an edited version of the selected 0.00–7.08-second segment of <Video 1>. Replace only the original female protagonist with <Subject 1>, including her entire head, face, hair, neck, torso, arms, hands, legs, feet, clothing, and accessories. Transfer the original runway performance from <Subject 2> to <Subject 1> one-to-one. Preserve every other element of <Video 1> exactly, including all camera movements, cuts, shot sizes, runway geometry, spectators, flashes, stage lights, reflections, and timing.\n\nretention_analysis:\n<Subject 1> (appears throughout [Shot 1] to [Shot 4]): fully_preserved - retain the pig’s recognizable face, snout, ears, bristles, stocky proportions, grey hoodie, weathered brown jacket, dark trousers, worn sneakers, and brown cross-body satchel from <Picture 1>.\n<Subject 2> (appears throughout [Shot 1] to [Shot 4]): attribute_transfer - transfer the source protagonist’s complete walking performance, pose sequence, timing, foot contacts, arm motion, head direction, and screen trajectory to <Subject 1>, while completely removing the original protagonist’s identity, body, hair, dress, tights, boots, and accessories.\n<Video 1> (complete selected segment): partially_preserved - preserve the complete four-shot structure, cuts, camera movement, shot-size transitions, runway, audience, lighting, focus, reflections, and pacing; change only the main protagonist.\n\ndetailed_description:\nThe target is a precise character-replacement edit lasting exactly 7.08 seconds. Preserve <Video 1>’s cinematic fashion-runway style, 16:9 composition, frame rate, color grading, contrast, depth of field, and temporal rhythm. Do not redesign, reinterpret, extend, shorten, or reorder the source footage.\n\n[Shot 1] Reproduce the exact opening full-body frontal runway shot from <Video 1>. Completely replace the original woman with <Subject 1>. The pig walks directly toward the camera along the glossy black catwalk, matching the original protagonist’s exact starting position, walking speed, stride rhythm, footfalls, upright posture, arm swing, head direction, and screen trajectory. Keep the runway’s bright white edge lights, vertical light panels, overhead spotlights, seated audience, camera flashes, floor reflections, and frontal camera movement unchanged. Scale the pig uniformly to occupy the original protagonist’s approximate on-screen height without stretching his stocky proportions. His jacket, hoodie, trousers, ears, short hair, and satchel produce restrained secondary motion corresponding to each step.\n\n[Shot 2] At 00:02.500, preserve the exact cut to the low-angle close-up of the protagonist’s lower body. Show <Subject 1>’s dark-grey trouser legs and worn beige sneakers replacing the original dress hem, tights, and platform boots. His feet reproduce the original crossing runway steps frame by frame, with identical heel-to-toe contacts, stride length, timing, direction, and position on the reflective floor. Retain the ground-level lateral tracking movement, audience placement, flash photography, runway reflections, focus depth, and motion blur exactly. The lower edge of his jacket and satchel may swing naturally into frame but must not obscure the original leg choreography.\n\n[Shot 3] At 00:04.375, preserve the exact cut to the side-profile medium shot. <Subject 1> continues walking in the same direction and at the same speed as the original protagonist. Match the source torso position, shoulder movement, arm swing, gaze direction, and profile trajectory. Clearly preserve his protruding snout, drooping ear, short bristles, grey hood, weathered jacket, and diagonal satchel strap from the side. Retain the camera’s parallel tracking movement, audience background, phone flashes, stage lighting, shallow depth of field, and composition without alteration.\n\n[Shot 4] At 00:06.333, preserve the exact cut to the frontal three-quarter medium shot and the following shot-size change from <Video 1>. <Subject 1> maintains the original walk, posture, facial direction, hand movement, and runway position. Match the source camera’s movement and its transition toward the wider final composition exactly. End at 00:07.080 on the same framing, runway position, lighting state, audience arrangement, and motion phase as the selected source segment.\n\nThroughout all shots, remove every visible fragment of the original woman. Do not retain her face, red-and-black hair, feminine body silhouette, black dress, belt, tights, boots, hands, or shadow. Do not create a hybrid human-pig face or place the pig’s head on the original body. Replace the complete character silhouette, clothing, limbs, footwear, accessories, reflections, and cast shadow. Maintain one stable pig identity with no face drift, costume changes, duplicated ears, extra limbs, extra fingers, deformation, flicker, or scale jumps.\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A",
-        "ref_image_size": "match"
+        "filename_prefix": "video/MiniMax_H3",
+        "format": "auto",
+        "format.codec": "auto",
+        "codec": "auto"
       }
     },
     {
       "id": 177,
       "type": "LoraLoaderModelOnly",
       "pos": [
-        -741.4013264742927,
-        4951.951101911806
+        -750.8703766509435,
+        4936.169351617388
       ],
       "size": [
         355.2214515898622,
@@ -864,27 +826,42 @@
       }
     },
     {
-      "id": 200,
-      "type": "MiniMaxH3DanceTimelinePlanner",
+      "id": 213,
+      "type": "MiniMaxH3DanceTimelineDirector",
       "pos": [
-        -981.7106111528464,
-        5603.505284975321
+        -977.5555817882071,
+        5617.937013349747
       ],
       "size": [
-        1008.4226720997522,
-        804
+        1458.2718066156808,
+        922
       ],
       "flags": {},
       "order": 12,
       "mode": 0,
       "inputs": [
         {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 385
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 386
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 387
+        },
+        {
           "name": "width",
           "type": "INT",
           "widget": {
             "name": "width"
           },
-          "link": 380
+          "link": 388
         },
         {
           "name": "height",
@@ -892,155 +869,57 @@
           "widget": {
             "name": "height"
           },
-          "link": 381
+          "link": 389
         }
       ],
       "outputs": [
         {
-          "name": "素材规划",
-          "type": "MINIMAX_H3_TIMELINE_PLAN",
+          "name": "positive",
+          "type": "CONDITIONING",
           "links": [
-            371
+            390
           ]
         },
         {
-          "name": "Omni素材包",
-          "type": "MINIMAX_H3_OMNI_MEDIA_BUNDLE",
+          "name": "LATENT",
+          "type": "LATENT",
           "links": [
-            370
+            391
           ]
-        }
-      ],
-      "properties": {
-        "aux_id": "linax777/ComfyUI-MiniMaxH3-DanceTransfer",
-        "ver": "bad313e7e1a7eb300a23aac9f094da63fb536430",
-        "Node name for S&R": "MiniMaxH3DanceTimelinePlanner"
-      },
-      "widgets_values": [
-        1344,
-        768,
-        7.1,
-        "{\"version\":3,\"fps\":24,\"selection\":{\"start\":0,\"duration\":7.078613613584206},\"videoAudioEnabled\":true,\"videoClips\":[{\"id\":\"mtbai2bj-t45njl\",\"file\":\"minimax_h3_timeline_director/1787821064720_0yk6p_MiniMax_H3_00270_.mp4\",\"name\":\"MiniMax_H3_00270_.mp4\",\"start\":1.4477522634647928,\"duration\":10.125,\"trimStart\":0,\"sourceDuration\":10.125,\"hasAudio\":true,\"referenceMode\":\"guide\",\"proxy\":\"minimax_h3_timeline_director/preview_proxies/1787821064720_0yk6p_MiniMax_H3_00270__1283506a60c8e3b2.mp4\",\"peaks\":[0.38978061079978943,0.33672213554382324,0.625491738319397,0.4286450743675232,0.4522716701030731,0.4393753707408905,0.38233768939971924,0.4258309006690979,0.42141425609588623,0.36385294795036316,0.4151386618614197,0.31863170862197876,0.3456260561943054,0.312272310256958,0.3125486373901367,0.37589848041534424,0.43641582131385803,0.3171346187591553,0.36357229948043823,0.3206935524940491,0.31213200092315674,0.27406615018844604,0.25671762228012085,0.21782325208187103,0.2689964771270752,0.2622848451137543,0.2665671706199646,0.23599198460578918,0.3642759919166565,0.26954349875450134,0.2888799011707306,0.3646188974380493,0.34940725564956665,0.25508227944374084,0.31595033407211304,0.30034321546554565,0.20045983791351318,0.23677952587604523,0.24659743905067444,0.19758862257003784,0.20138680934906006,0.19314470887184143,0.1563657969236374,0.18739652633666992,0.19765551388263702,0.27661120891571045,0.5996931791305542,0.7556778192520142,0.6576576828956604,0.6713910102844238,0.7173267602920532,0.5965886116027832,0.627927303314209,0.6610210537910461,0.494768351316452,0.5427745580673218,0.5101087689399719,0.6094356775283813,0.5156543254852295,0.35261327028274536,0.3372027277946472,0.6149507761001587,0.5383546948432922,0.42256101965904236,0.41568249464035034,0.3413054943084717,0.32351255416870117,0.2924082279205322,0.2564898729324341,0.24161569774150848,0.22784215211868286,0.35476377606391907,0.2521263659000397,0.223635733127594,0.49672529101371765,0.48295480012893677,0.4883749485015869,0.5276212096214294,0.6350110769271851,0.656936764717102,0.4742591977119446,0.5315373539924622,0.47244739532470703,0.47684159874916077,0.3390640914440155,0.38375359773635864,0.41124415397644043,0.41633474826812744,0.4056006073951721,0.3096463084220886,0.35333019495010376,0.2778109312057495,0.2785322368144989,0.2650572955608368,0.25869113206863403,0.18328388035297394,0.2830575704574585,0.22755105793476105,0.23919445276260376,0.19208687543869019,0.15217037498950958,0.20568200945854187,0.14975011348724365,0.1310286670923233,0.12198290228843689,0.09321869909763336,0.08580503612756729,0.09754593670368195,0.359171986579895,0.7617007493972778,0.7902268171310425,0.7899621725082397,1,0.8353162407875061,0.7475754618644714,0.6093595623970032,0.8006884455680847,0.6586914658546448,0.5617023706436157,0.4709331691265106,0.5305144786834717,0.3572438359260559,0.3608132004737854,0.3158714473247528,0.2536795735359192,0.3453940749168396,0.22078439593315125,0.26655521988868713,0.2795112729072571,0.26463621854782104,0.28220951557159424,0.23085352778434753,0.18914389610290527,0.16218113899230957,0.14496931433677673,0.1382559835910797,0.1269485056400299,0.16532863676548004,0.1163867712020874,0.10437493771314621,0.09715813398361206,0.08940571546554565,0.11662736535072327,0.09219841659069061,0.12128008902072906,0.16944506764411926,0.18742063641548157,0.16270782053470612,0.1624133586883545,0.09403477609157562,0.1250355839729309,0.23232311010360718,0.31070369482040405,0.1552172601222992,0.11716906726360321,0.22383874654769897,0.18195271492004395,0.17283210158348083,0.2304777204990387,0.16845202445983887,0.21676947176456451,0.17488302290439606,0.13356776535511017,0.21953582763671875,0.18402159214019775,0.19285798072814941,0.26773226261138916,0.2531951367855072,0.14285266399383545,0.11079496145248413,0.22424861788749695,0.19332247972488403,0.2933376431465149,0.22947955131530762,0.23247070610523224,0.20667362213134766,0.20414552092552185,0.27898332476615906,0.20168626308441162,0.22039709985256195]}],\"images\":[{\"id\":\"mtb94oys-v7dn57\",\"file\":\"minimax_h3_timeline_director/1787818761275_xhzfj_ChatGPT_Image_2026年7月20日_18_34_51_(3)_(1).png\",\"name\":\"ChatGPT Image 2026年7月20日 18_34_51 (3) (1).png\",\"width\":1672,\"height\":941}],\"audios\":[]}",
-        ""
-      ],
-      "widgets_values_named": {
-        "width": 1344,
-        "height": 768,
-        "generation_seconds": 7.1,
-        "timeline_data": "{\"version\":3,\"fps\":24,\"selection\":{\"start\":0,\"duration\":7.078613613584206},\"videoAudioEnabled\":true,\"videoClips\":[{\"id\":\"mtbai2bj-t45njl\",\"file\":\"minimax_h3_timeline_director/1787821064720_0yk6p_MiniMax_H3_00270_.mp4\",\"name\":\"MiniMax_H3_00270_.mp4\",\"start\":1.4477522634647928,\"duration\":10.125,\"trimStart\":0,\"sourceDuration\":10.125,\"hasAudio\":true,\"referenceMode\":\"guide\",\"proxy\":\"minimax_h3_timeline_director/preview_proxies/1787821064720_0yk6p_MiniMax_H3_00270__1283506a60c8e3b2.mp4\",\"peaks\":[0.38978061079978943,0.33672213554382324,0.625491738319397,0.4286450743675232,0.4522716701030731,0.4393753707408905,0.38233768939971924,0.4258309006690979,0.42141425609588623,0.36385294795036316,0.4151386618614197,0.31863170862197876,0.3456260561943054,0.312272310256958,0.3125486373901367,0.37589848041534424,0.43641582131385803,0.3171346187591553,0.36357229948043823,0.3206935524940491,0.31213200092315674,0.27406615018844604,0.25671762228012085,0.21782325208187103,0.2689964771270752,0.2622848451137543,0.2665671706199646,0.23599198460578918,0.3642759919166565,0.26954349875450134,0.2888799011707306,0.3646188974380493,0.34940725564956665,0.25508227944374084,0.31595033407211304,0.30034321546554565,0.20045983791351318,0.23677952587604523,0.24659743905067444,0.19758862257003784,0.20138680934906006,0.19314470887184143,0.1563657969236374,0.18739652633666992,0.19765551388263702,0.27661120891571045,0.5996931791305542,0.7556778192520142,0.6576576828956604,0.6713910102844238,0.7173267602920532,0.5965886116027832,0.627927303314209,0.6610210537910461,0.494768351316452,0.5427745580673218,0.5101087689399719,0.6094356775283813,0.5156543254852295,0.35261327028274536,0.3372027277946472,0.6149507761001587,0.5383546948432922,0.42256101965904236,0.41568249464035034,0.3413054943084717,0.32351255416870117,0.2924082279205322,0.2564898729324341,0.24161569774150848,0.22784215211868286,0.35476377606391907,0.2521263659000397,0.223635733127594,0.49672529101371765,0.48295480012893677,0.4883749485015869,0.5276212096214294,0.6350110769271851,0.656936764717102,0.4742591977119446,0.5315373539924622,0.47244739532470703,0.47684159874916077,0.3390640914440155,0.38375359773635864,0.41124415397644043,0.41633474826812744,0.4056006073951721,0.3096463084220886,0.35333019495010376,0.2778109312057495,0.2785322368144989,0.2650572955608368,0.25869113206863403,0.18328388035297394,0.2830575704574585,0.22755105793476105,0.23919445276260376,0.19208687543869019,0.15217037498950958,0.20568200945854187,0.14975011348724365,0.1310286670923233,0.12198290228843689,0.09321869909763336,0.08580503612756729,0.09754593670368195,0.359171986579895,0.7617007493972778,0.7902268171310425,0.7899621725082397,1,0.8353162407875061,0.7475754618644714,0.6093595623970032,0.8006884455680847,0.6586914658546448,0.5617023706436157,0.4709331691265106,0.5305144786834717,0.3572438359260559,0.3608132004737854,0.3158714473247528,0.2536795735359192,0.3453940749168396,0.22078439593315125,0.26655521988868713,0.2795112729072571,0.26463621854782104,0.28220951557159424,0.23085352778434753,0.18914389610290527,0.16218113899230957,0.14496931433677673,0.1382559835910797,0.1269485056400299,0.16532863676548004,0.1163867712020874,0.10437493771314621,0.09715813398361206,0.08940571546554565,0.11662736535072327,0.09219841659069061,0.12128008902072906,0.16944506764411926,0.18742063641548157,0.16270782053470612,0.1624133586883545,0.09403477609157562,0.1250355839729309,0.23232311010360718,0.31070369482040405,0.1552172601222992,0.11716906726360321,0.22383874654769897,0.18195271492004395,0.17283210158348083,0.2304777204990387,0.16845202445983887,0.21676947176456451,0.17488302290439606,0.13356776535511017,0.21953582763671875,0.18402159214019775,0.19285798072814941,0.26773226261138916,0.2531951367855072,0.14285266399383545,0.11079496145248413,0.22424861788749695,0.19332247972488403,0.2933376431465149,0.22947955131530762,0.23247070610523224,0.20667362213134766,0.20414552092552185,0.27898332476615906,0.20168626308441162,0.22039709985256195]}],\"images\":[{\"id\":\"mtb94oys-v7dn57\",\"file\":\"minimax_h3_timeline_director/1787818761275_xhzfj_ChatGPT_Image_2026年7月20日_18_34_51_(3)_(1).png\",\"name\":\"ChatGPT Image 2026年7月20日 18_34_51 (3) (1).png\",\"width\":1672,\"height\":941}],\"audios\":[]}",
-        "minimax_h3_timeline": ""
-      }
-    },
-    {
-      "id": 202,
-      "type": "MiniMaxH3DanceOmniPromptBridge",
-      "pos": [
-        48.67508289388225,
-        5625.198811666561
-      ],
-      "size": [
-        411.85972918242066,
-        411.5280694952662
-      ],
-      "flags": {},
-      "order": 14,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "media_bundle",
-          "type": "MINIMAX_H3_OMNI_MEDIA_BUNDLE",
-          "link": 370
         },
         {
-          "name": "options",
-          "shape": 7,
-          "type": "H3_REWRITER_OPTIONS",
-          "link": null
-        }
-      ],
-      "outputs": [
+          "name": "视频原声合并",
+          "type": "AUDIO",
+          "links": null
+        },
         {
-          "name": "rewritten_prompt",
-          "type": "STRING",
-          "links": [
-            384
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "linax777/ComfyUI-MiniMaxH3-DanceTransfer",
-        "ver": "bad313e7e1a7eb300a23aac9f094da63fb536430",
-        "Node name for S&R": "MiniMaxH3DanceOmniPromptBridge"
-      },
-      "widgets_values": [
-        "REF2AV",
-        "将原视频中的人物替换成参考图中的角色，整个人物都完成替换，但是要保证原视频的镜头运动，景别切换等内容跟原视频保持一致，只更改主角",
-        "Qwen2.5-Omni-7B GGUF Q8_0 · 9.7 GB download · ~13 GB - closer to the bf16 rewrite on a card that has room",
-        "bfloat16",
-        true,
-        1593158621,
-        "fixed",
-        false,
-        64,
-        false
-      ],
-      "widgets_values_named": {
-        "task": "REF2AV",
-        "prompt": "将原视频中的人物替换成参考图中的角色，整个人物都完成替换，但是要保证原视频的镜头运动，景别切换等内容跟原视频保持一致，只更改主角",
-        "model": "Qwen2.5-Omni-7B GGUF Q8_0 · 9.7 GB download · ~13 GB - closer to the bf16 rewrite on a card that has room",
-        "quantization": "bfloat16",
-        "greedy": true,
-        "seed": 1593158621,
-        "control_after_generate": "fixed",
-        "keep_model_loaded": false,
-        "max_frames": 64,
-        "bypass": false
-      }
-    },
-    {
-      "id": 92,
-      "type": "SaveVideo",
-      "pos": [
-        730.9725267201007,
-        4921.523401704712
-      ],
-      "size": [
-        706.4361757164115,
-        140.7198506477207
-      ],
-      "flags": {},
-      "order": 21,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "video",
-          "type": "VIDEO",
-          "link": 260
-        }
-      ],
-      "outputs": [
-        {
-          "name": "video",
-          "type": "VIDEO",
+          "name": "独立音频合并",
+          "type": "AUDIO",
           "links": null
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.29.0",
-        "Node name for S&R": "SaveVideo"
+        "aux_id": "linax777/ComfyUI-MiniMaxH3-DanceTransfer",
+        "ver": "bad313e7e1a7eb300a23aac9f094da63fb536430",
+        "Node name for S&R": "MiniMaxH3DanceTimelineDirector"
       },
       "widgets_values": [
-        "video/MiniMax_H3",
-        "auto",
-        "auto",
-        "auto"
+        "",
+        1344,
+        768,
+        8.4,
+        "match",
+        "{\"version\":3,\"fps\":24,\"selection\":{\"start\":0,\"duration\":8.429154818366573},\"videoAudioEnabled\":true,\"videoClips\":[],\"images\":[],\"audios\":[]}",
+        ""
       ],
       "widgets_values_named": {
-        "filename_prefix": "video/MiniMax_H3",
-        "format": "auto",
-        "format.codec": "auto",
-        "codec": "auto"
+        "prompt": "",
+        "width": 1344,
+        "height": 768,
+        "generation_seconds": 8.4,
+        "ref_image_size": "match",
+        "timeline_data": "{\"version\":3,\"fps\":24,\"selection\":{\"start\":0,\"duration\":8.429154818366573},\"videoAudioEnabled\":true,\"videoClips\":[],\"images\":[],\"audios\":[]}",
+        "minimax_h3_timeline": ""
       }
     }
   ],
@@ -1174,84 +1053,60 @@
       "MODEL"
     ],
     [
-      370,
-      200,
-      1,
-      202,
-      0,
-      "MINIMAX_H3_OMNI_MEDIA_BUNDLE"
-    ],
-    [
-      371,
-      200,
-      0,
-      203,
-      3,
-      "MINIMAX_H3_TIMELINE_PLAN"
-    ],
-    [
-      374,
+      385,
       128,
       0,
-      203,
+      213,
       0,
       "CLIP"
     ],
     [
-      375,
+      386,
       119,
       0,
-      203,
+      213,
       1,
       "VAE"
     ],
     [
-      376,
+      387,
       120,
       0,
-      203,
+      213,
       2,
       "VAE"
     ],
     [
-      377,
-      203,
+      388,
+      115,
+      0,
+      213,
+      3,
+      "INT"
+    ],
+    [
+      389,
+      115,
+      1,
+      213,
+      4,
+      "INT"
+    ],
+    [
+      390,
+      213,
       0,
       126,
       1,
       "CONDITIONING"
     ],
     [
-      378,
-      203,
+      391,
+      213,
       1,
       125,
       4,
       "LATENT"
-    ],
-    [
-      380,
-      115,
-      0,
-      200,
-      0,
-      "INT"
-    ],
-    [
-      381,
-      115,
-      1,
-      200,
-      1,
-      "INT"
-    ],
-    [
-      384,
-      202,
-      0,
-      203,
-      4,
-      "STRING"
     ]
   ],
   "groups": [
@@ -1309,8 +1164,8 @@
       "bounding": [
         -1520,
         5540,
-        2029.0858830491557,
-        894.3470457221983
+        2031.9552921935956,
+        1027.7745709386454
       ],
       "color": "#3f789e",
       "flags": {}
@@ -1319,10 +1174,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.6970076065574542,
+      "scale": 0.6336432786885947,
       "offset": [
-        1722.0177873762216,
-        -4690.769508636099
+        1814.6866599727857,
+        -4653.715002366314
       ]
     },
     "frontendVersion": "1.49.6",

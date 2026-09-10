@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import re
-from functools import lru_cache
-from pathlib import Path
+from dataclasses import asdict
 
-import torch
-from comfy.nested_tensor import NestedTensor
 from comfy_api.latest import io
 from comfy_execution.graph_utils import GraphBuilder
 
+from .dance_namespace import DANCE_CATEGORIES, DANCE_NODE_IDS
 from .experimental_latent_guide import (
     _apply_linear_temporal_noise_mask,
     _valid_guide_frames,
@@ -21,113 +20,24 @@ from .drift_control_av import (
     drift_control_step_count,
     install_drift_control_av_model,
 )
+from .dance_continuation import (
+    build_linear_context_strength,
+    build_dance_segment_report,
+    context_strength_to_latent_mask,
+    format_dance_segment_debug,
+    parse_dance_continuation,
+    resolve_context_timing,
+    rgb_frames_to_h3_latent_ticks,
+)
 from .minimax_h3_timeline_director import (
     TimelinePlan,
+    _aligned_h3_length,
     _require_timeline_plan,
     _timeline_for_prompt_index,
-    _apply_h3_guides,
-    _audio_mode,
-    _decode_audio,
-    _safe_input_path,
 )
 
 H3_FPS = 24
 FiniteSegmentPlan = io.Custom("MINIMAX_H3_FINITE_SEGMENT_PLAN")
-
-
-@lru_cache(maxsize=8)
-def _decode_locked_audio_file(
-    path_text: str, modified_ns: int, file_size: int,
-) -> dict | None:
-    """Decode a locked soundtrack once and reuse its PCM for every segment.
-
-    ``modified_ns`` and ``file_size`` deliberately participate in the cache key,
-    so replacing an upload at the same path cannot reuse stale audio.  Decoding
-    from the beginning avoids compressed-audio seek/priming errors (notably the
-    repeatable 1105-sample short read produced by some MP3 files).
-    """
-
-    del modified_ns, file_size
-    return _decode_audio(Path(path_text), 0.0, None)
-
-
-def _locked_audio_pcm(asset: dict) -> dict:
-    path = _safe_input_path(str(asset["file"]))
-    stat = path.stat()
-    audio = _decode_locked_audio_file(
-        str(path.resolve()), int(stat.st_mtime_ns), int(stat.st_size),
-    )
-    if audio is None:
-        raise ValueError("The locked original-audio asset could not be decoded")
-    return audio
-
-
-def _locked_audio_for_plan(plan) -> dict | None:
-    source = _require_timeline_plan(plan)
-    assets = [
-        asset for asset in source["timeline"].get("audios", [])
-        if isinstance(asset, dict) and asset.get("file") and _audio_mode(asset) == "locked"
-    ]
-    if len(assets) > 1:
-        raise ValueError("Each segment can contain at most one locked original-audio asset")
-    return assets[0] if assets else None
-
-
-def _finite_locked_audio_asset(finite: dict) -> dict | None:
-    """Require one continuous locked soundtrack across a finite render."""
-
-    plans = [
-        _finite_plan_for_segment(finite, number)
-        for number in range(1, int(finite["segment_count"]) + 1)
-    ]
-    assets = [_locked_audio_for_plan(plan) for plan in plans]
-    if not any(assets):
-        return None
-    if not all(assets):
-        raise ValueError(
-            "Locked original audio is enabled in only some segments; assign the same locked audio to every segment"
-        )
-    identity = {
-        (str(asset.get("file")), round(float(asset.get("trimStart") or 0.0), 6))
-        for asset in assets if asset is not None
-    }
-    if len(identity) != 1:
-        raise ValueError(
-            "A continuous locked soundtrack must use the same audio file and source-in point in every segment"
-        )
-    return copy.deepcopy(assets[0])
-
-
-def _locked_audio_interval(plan, *, output_frames: int | None = None) -> dict:
-    source = _require_timeline_plan(plan)
-    asset = _locked_audio_for_plan(source)
-    if asset is None:
-        raise ValueError("This material plan has no locked original-audio asset")
-    selection = source["timeline"].get("selection") or {}
-    timeline_start = max(0.0, float(selection.get("start") or 0.0))
-    frame_count = int(output_frames or source.get("length") or 0)
-    if frame_count < 1:
-        raise ValueError("The locked-audio interval has no target frames")
-    duration = frame_count / H3_FPS
-    source_start = max(0.0, float(asset.get("trimStart") or 0.0)) + timeline_start
-    audio = _locked_audio_pcm(asset)
-    expected = round(duration * int(audio["sample_rate"]))
-    source_sample = round(source_start * int(audio["sample_rate"]))
-    waveform = audio["waveform"]
-    source_sample = min(max(0, source_sample), int(waveform.shape[-1]))
-    waveform = waveform[..., source_sample:source_sample + expected]
-    if waveform.shape[-1] < expected:
-        # H3 needs a legal AV latent duration even when the soundtrack ends in
-        # the middle of a segment.  Silence is internal padding only: existing
-        # source samples remain bit-for-bit unchanged, while the final output
-        # follows the user's timeline duration without requiring frame-perfect
-        # audio metadata.
-        waveform = torch.nn.functional.pad(
-            waveform, (0, expected - int(waveform.shape[-1])),
-        )
-    result = dict(audio)
-    result["waveform"] = waveform[..., :expected].clone()
-    return result
 
 
 def _parse_segment_prompts(value: str) -> list[str]:
@@ -196,6 +106,184 @@ def _finite_plan_for_segment(finite: dict, segment_number: int):
     return _plan_for_segment(finite["source_plan"], segment_number)
 
 
+def _synchronized_audio_assets(
+    assets: list, source_offset_seconds: float, window_seconds: float,
+) -> list[dict]:
+    """Slice long standalone audio on the same clock as the source video."""
+
+    sliced: list[dict] = []
+    for raw in assets:
+        if not isinstance(raw, dict) or not raw.get("file"):
+            continue
+        asset = copy.deepcopy(raw)
+        base_start = max(0.0, float(asset.get("trimStart") or 0.0))
+        base_duration = max(0.0, float(asset.get("duration") or 0.0))
+        if base_duration <= source_offset_seconds:
+            continue
+        asset["trimStart"] = base_start + source_offset_seconds
+        asset["duration"] = min(window_seconds, base_duration - source_offset_seconds)
+        sliced.append(asset)
+    return sliced
+
+
+def _prepare_long_reference_plan(
+    plan, prompt: str, overlap_frames: int, slice_reference_audio: bool,
+):
+    """Build per-segment video references without materializing clips."""
+
+    source = _require_timeline_plan(plan)
+    if source.get("prompt_index") is not None:
+        raise ValueError(
+            "Long reference segmentation requires the complete material plan; "
+            "leave Prompt Index disconnected"
+        )
+    prompt = str(prompt or "").strip()
+    if not prompt:
+        raise ValueError("The shared prompt cannot be empty")
+
+    timeline = source["timeline"]
+    dance_config = parse_dance_continuation(timeline)
+    clips = [
+        item for item in timeline.get("videoClips", [])
+        if isinstance(item, dict) and item.get("file")
+    ]
+    if len(clips) > 1:
+        raise ValueError(
+            "Long reference segmentation currently accepts at most one timeline video"
+        )
+    clip = clips[0] if clips else None
+    audio_assets = [
+        item for item in timeline.get("audios", [])
+        if isinstance(item, dict) and item.get("file")
+    ]
+    video_duration = (
+        max(0.0, float(clip.get("duration") or 0.0)) if clip else 0.0
+    )
+    audio_duration = max(
+        (max(0.0, float(item.get("duration") or 0.0)) for item in audio_assets),
+        default=0.0,
+    )
+    source_duration = max(video_duration, audio_duration)
+    total_frames = max(0, round(source_duration * H3_FPS))
+    if total_frames < 5:
+        raise ValueError(
+            "Upload a timeline video or standalone audio containing at least 5 frames of time"
+        )
+
+    segment_seconds = float(source.get("generation_seconds") or 0.0)
+    if segment_seconds <= 0:
+        raise ValueError(
+            "The Material Planner generation duration must be greater than zero"
+        )
+    segment_frames = _aligned_h3_length(segment_seconds)
+    context_timing = resolve_context_timing(dance_config, int(overlap_frames))
+    actual_overlap = context_timing.aligned_context_frames
+    source_overlap = context_timing.source_overlap_frames
+    if source_overlap >= segment_frames:
+        raise ValueError(
+            f"The {source_overlap}-frame source overlap must be shorter than the "
+            f"{segment_frames}-frame segment"
+        )
+    stride_frames = segment_frames - source_overlap
+    segment_count = 1 + max(
+        0, math.ceil((total_frames - segment_frames) / stride_frames)
+    )
+    starts = [index * stride_frames for index in range(segment_count)]
+    assembled_frames = segment_frames + (segment_count - 1) * stride_frames
+    trim_tail_frames = max(0, assembled_frames - total_frames)
+
+    debug_segments = build_dance_segment_report(
+        total_source_frames=total_frames,
+        segment_frames=segment_frames,
+        requested_context_frames=source_overlap,
+    )
+    for debug_segment in debug_segments:
+        print(format_dance_segment_debug(debug_segment))
+
+    base_trim = max(0.0, float(clip.get("trimStart") or 0.0)) if clip else 0.0
+    video_frames = max(0, round(video_duration * H3_FPS))
+    segment_plans = []
+    for start_frame in starts:
+        available_frames = min(segment_frames, total_frames - start_frame)
+        window_seconds = available_frames / H3_FPS
+        segment_timeline = copy.deepcopy(timeline)
+        if clip and start_frame < video_frames:
+            available_video_frames = min(
+                segment_frames, video_frames - start_frame
+            )
+            segment_clip = copy.deepcopy(clip)
+            segment_clip["start"] = 0.0
+            segment_clip["trimStart"] = base_trim + start_frame / H3_FPS
+            segment_clip["duration"] = available_video_frames / H3_FPS
+            # Preserve the purpose selected in the Material Planner. Character-
+            # swap workflows should select Editable Reference there; Fixed Guide
+            # and Boundary Only intentionally retain their anchoring behavior.
+            segment_timeline["videoClips"] = [segment_clip]
+        else:
+            # The longest standalone audio may outlive the reference video, or
+            # an audio-driven digital-human workflow may contain no video at all.
+            # Do not repeat/freeze a shorter video into those later windows.
+            segment_timeline["videoClips"] = []
+        segment_timeline["selection"] = {
+            "start": 0.0,
+            "duration": segment_frames / H3_FPS,
+        }
+        segment_timeline["segmentConfig"] = {"count": 0, "segments": []}
+        if slice_reference_audio:
+            segment_timeline["audios"] = _synchronized_audio_assets(
+                list(timeline.get("audios") or []),
+                start_frame / H3_FPS,
+                window_seconds,
+            )
+
+        segment_plan = copy.deepcopy(source)
+        segment_plan["timeline"] = segment_timeline
+        segment_plan["generation_seconds"] = segment_frames / H3_FPS
+        segment_plan["length"] = segment_frames
+        segment_plan["prompt_index"] = None
+        segment_plan["segment_count"] = segment_count
+        segment_plans.append(segment_plan)
+
+    return {
+        "type": "minimax_h3_finite_segment_plan",
+        "version": 2,
+        "mode": "long_reference_auto_segments",
+        "source_plan": copy.deepcopy(source),
+        "segment_plans": segment_plans,
+        "prompts": [prompt] * segment_count,
+        "segment_count": segment_count,
+        "requested_overlap_frames": int(overlap_frames),
+        "overlap_frames": actual_overlap,
+        "requested_context_rgb_frames": (
+            dance_config.context_frames
+            if dance_config.enabled else int(overlap_frames)
+        ),
+        "effective_context_rgb_frames": source_overlap,
+        "aligned_context_rgb_frames": actual_overlap,
+        "source_overlap_frames": source_overlap,
+        "output_overlap_frames": context_timing.output_trim_frames,
+        "effective_context_latent_ticks": context_timing.context_latent_ticks,
+        "segment_frames": segment_frames,
+        "stride_frames": stride_frames,
+        "assembled_frames_before_trim": assembled_frames,
+        "trim_tail_frames": trim_tail_frames,
+        "target_output_frames": total_frames,
+        "source_duration_seconds": source_duration,
+        "reference_mode": (
+            str(clip.get("referenceMode") or "guide") if clip else "none"
+        ),
+        "video_duration_seconds": video_duration,
+        "audio_duration_seconds": audio_duration,
+        "duration_source": (
+            "video_and_audio"
+            if video_duration > 0 and audio_duration > 0
+            else "video" if video_duration > 0 else "audio"
+        ),
+        "slice_reference_audio": bool(slice_reference_audio),
+        "dance_continuation": asdict(dance_config),
+    }
+
+
 def _prepare_finite_plan(
     plan,
     segment_prompts: str,
@@ -204,6 +292,7 @@ def _prepare_finite_plan(
     inject_continuity: bool,
 ):
     source = _require_timeline_plan(plan)
+    dance_config = parse_dance_continuation(source.get("timeline"))
     count = int(segment_count)
     configured_count = int(source.get("segment_count") or 0)
     if configured_count > 0 and configured_count != count:
@@ -215,7 +304,8 @@ def _prepare_finite_plan(
         raise ValueError(
             f"Finite expansion requests {count} segments but parsed {len(prompts)} prompts; keep them identical"
         )
-    actual_overlap = _valid_guide_frames(int(overlap_frames))
+    context_timing = resolve_context_timing(dance_config, int(overlap_frames))
+    actual_overlap = context_timing.aligned_context_frames
     prepared = []
     for index, prompt in enumerate(prompts):
         if index > 0 and inject_continuity:
@@ -233,102 +323,26 @@ def _prepare_finite_plan(
         "segment_count": count,
         "requested_overlap_frames": int(overlap_frames),
         "overlap_frames": actual_overlap,
-    }
-
-
-def _prepare_timeline_segments(source):
-    """Compile the planner's frame windows without changing their visible geometry."""
-    source = _require_timeline_plan(source)
-    if source.get("prompt_index") is not None:
-        raise ValueError("Disconnect Prompt Index when generating all timeline segments")
-    config = source["timeline"].get("segmentConfig", {})
-    segments = config.get("segments", [])
-    count = int(config.get("count", 0))
-    global_prompt = str(source["timeline"].get("globalPrompt") or "").strip()
-
-    # The Material Planner is also the single-segment text-to-video planner.
-    # With no windows, its current GEN selection becomes one finite segment;
-    # the encoder created inside Finite Segment Sampling already knows how to
-    # create an empty H3 AV latent when the plan contains no reference media.
-    if count == 0:
-        if not global_prompt:
-            raise ValueError("Enter a Global Prompt in the Material Planner")
-        length = int(source.get("length") or 0)
-        if length < 5 or (length - 5) % 17 or length > 3592:
-            raise ValueError("The Material Planner generation duration must resolve to 5 + 17*n frames")
-        plan = copy.deepcopy(source)
-        plan["timeline"]["segmentConfig"] = {"count": 0, "segments": []}
-        return {
-            "type": "minimax_h3_finite_segment_plan", "version": 4,
-            "mode": "single_segment", "source_plan": source,
-            "segment_count": 1, "segment_plans": [plan],
-            "prompts": [global_prompt], "overlap_frames": 0,
-            "segment_overlaps": [0], "segment_lengths": [length],
-            "target_output_frames": length,
-        }
-
-    if config.get("mode") != "timeline" or not 1 <= count <= 64:
-        raise ValueError("Click Update segments in the Material Planner before generating")
-    if len(segments) != count:
-        raise ValueError("The segment count does not match the timeline windows")
-    local_prompts = [str(segment.get("prompt") or "").strip() for segment in segments]
-    if any(local_prompts):
-        if not all(local_prompts):
-            missing = ", ".join(str(index + 1) for index, prompt in enumerate(local_prompts) if not prompt)
-            raise ValueError(
-                "Segment prompt mode is active because at least one segment has a prompt; "
-                f"enter prompts for every segment (missing: {missing})"
-            )
-        resolved_prompts = local_prompts
-    else:
-        if not global_prompt:
-            raise ValueError("Enter a Global Prompt in the Material Planner, or enter a prompt for every segment")
-        resolved_prompts = [global_prompt] * len(segments)
-
-    plans, prompts, overlaps, lengths = [], [], [], []
-    previous_start = previous_end = 0
-    for index, segment in enumerate(segments):
-        start, end = segment.get("startFrame"), segment.get("endFrame")
-        if type(start) is not int or type(end) is not int:
-            raise ValueError(f"Segment {index + 1} requires integer frame boundaries")
-        length = end - start
-        if start < 0 or length < 5 or (length - 5) % 17 or length > 3592:
-            raise ValueError(f"Segment {index + 1} length must be 5 + 17*n frames (up to 150 seconds)")
-        overlap = previous_end - start if index else 0
-        if (not index and start != 0) or (index and (
-            start <= previous_start or end <= previous_end or overlap < 0
-            or overlap >= min(length, lengths[-1])
-            or (overlap and _valid_guide_frames(overlap) != overlap)
-        )):
-            raise ValueError(f"Segment {index + 1} must advance in time without gaps and use an H3-aligned overlap")
-        plan = _plan_for_segment(source, index + 1)
-        plan["timeline"]["selection"] = {"start": start / H3_FPS, "duration": length / H3_FPS}
-        plan["generation_seconds"], plan["length"] = length / H3_FPS, length
-        plan["timeline"]["segmentConfig"] = {"count": 0, "segments": []}
-        # Selected audio is local to this segment (short timbre references remain reusable).
-        plans.append(plan)
-        prompts.append(resolved_prompts[index])
-        overlaps.append(overlap)
-        lengths.append(length)
-        previous_start, previous_end = start, end
-    return {
-        "type": "minimax_h3_finite_segment_plan", "version": 3,
-        "mode": "timeline_segments", "source_plan": source,
-        "segment_count": len(plans), "segment_plans": plans, "prompts": prompts,
-        "overlap_frames": 0, "segment_overlaps": overlaps,
-        "segment_lengths": lengths, "target_output_frames": previous_end,
+        "requested_context_rgb_frames": (
+            dance_config.context_frames
+            if dance_config.enabled else int(overlap_frames)
+        ),
+        "effective_context_rgb_frames": context_timing.source_overlap_frames,
+        "aligned_context_rgb_frames": actual_overlap,
+        "source_overlap_frames": context_timing.source_overlap_frames,
+        "output_overlap_frames": context_timing.output_trim_frames,
+        "effective_context_latent_ticks": context_timing.context_latent_ticks,
+        "dance_continuation": asdict(dance_config),
     }
 
 
 def _require_finite_plan(value):
-    if isinstance(value, dict) and value.get("type") == "MINIMAX_H3_TIMELINE_PLAN":
-        value = _prepare_timeline_segments(value)
     if not isinstance(value, dict) or value.get("type") != "minimax_h3_finite_segment_plan":
-        raise ValueError("finite_plan must come from MiniMax H3 Material Planner or a legacy finite segment plan")
+        raise ValueError("finite_plan must come from MiniMax H3 Finite Segment Expansion")
     count = int(value.get("segment_count") or 0)
     prompts = value.get("prompts")
     if count < 1 or not isinstance(prompts, list) or len(prompts) != count:
-        raise ValueError("The finite segment plan is incomplete; update the segment plan and run it again")
+        raise ValueError("The finite segment plan is incomplete; run Finite Segment Expansion again")
     segment_plans = value.get("segment_plans")
     if segment_plans is not None and (
         not isinstance(segment_plans, list) or len(segment_plans) != count
@@ -337,16 +351,15 @@ def _require_finite_plan(value):
     return value
 
 
-class MiniMaxH3FiniteSegmentExpansion(io.ComfyNode):
+class MiniMaxH3DanceFiniteSegmentExpansion(io.ComfyNode):
     """Validate prompts/media assignments and produce a reusable finite plan."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteSegmentExpansion",
-            is_deprecated=True,
-            display_name="MiniMax H3 Finite Segment Expansion",
-            category="MiniMax H3/Long Video",
+            node_id=DANCE_NODE_IDS["finite_segment_expansion"],
+            display_name="MiniMax H3 Dance Finite Segment Expansion",
+            category=DANCE_CATEGORIES["long_video"],
             description=(
                 "Parse prompts, validate segment counts, match per-segment media, and build a finite plan. "
                 "This node performs no model loading, scheduling, or sampling."
@@ -380,35 +393,127 @@ class MiniMaxH3FiniteSegmentExpansion(io.ComfyNode):
             bool(inject_continuity_instruction),
         )
         overlap = finite["overlap_frames"]
-        status = (
-            f"Planned {finite['segment_count']} segments; actual overlap is {overlap} frames "
-            f"({overlap / H3_FPS:.3f}s). This node performs no sampling."
-        )
+        if (finite.get("dance_continuation") or {}).get("enabled", False):
+            status = (
+                f"Planned {finite['segment_count']} segments; requested/effective RGB "
+                f"context is {finite['requested_context_rgb_frames']}/"
+                f"{finite['effective_context_rgb_frames']} frames; internal H3 context "
+                f"is {finite['aligned_context_rgb_frames']} aligned frames / "
+                f"{finite['effective_context_latent_ticks']} latent ticks. "
+                "This node performs no sampling."
+            )
+        else:
+            status = (
+                f"Planned {finite['segment_count']} segments; actual overlap is {overlap} frames "
+                f"({overlap / H3_FPS:.3f}s). This node performs no sampling."
+            )
         return io.NodeOutput(finite, overlap, status)
 
 
-class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
+class MiniMaxH3DanceLongReferenceSegmentPlan(io.ComfyNode):
+    """Automatically slice one long reference for a shared prompt."""
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id=DANCE_NODE_IDS["long_reference_segment_plan"],
+            display_name="MiniMax H3 Dance Long Reference Auto Segmentation",
+            category=DANCE_CATEGORIES["long_video"],
+            description=(
+                "Use the Material Planner generation duration to split long reference media. "
+                "Audio-only plans follow the longest standalone audio; video-plus-audio "
+                "plans follow whichever is longer. Video purpose is preserved, one prompt "
+                "is reused, and standalone audio can be sliced on the same clock."
+            ),
+            inputs=[
+                TimelinePlan.Input("plan", display_name="Material Plan"),
+                io.String.Input("prompt", multiline=True),
+                io.Int.Input(
+                    "overlap_frames", display_name="Overlap Frames", default=48,
+                    min=1, max=362,
+                    tooltip="Rounded down to a valid 1 or 5/22/39/56… frame count.",
+                ),
+                io.Boolean.Input(
+                    "slice_reference_audio", display_name="Slice Standalone Audio", default=True,
+                    tooltip=(
+                        "On: long standalone audio follows every video slice for lip sync. "
+                        "Off: each segment reuses the complete standalone audio as a timbre reference."
+                    ),
+                ),
+            ],
+            outputs=[
+                FiniteSegmentPlan.Output(display_name="Finite Segment Plan"),
+                io.Int.Output(display_name="Segment Count"),
+                io.Int.Output(display_name="Actual Overlap Frames"),
+                io.String.Output(display_name="Planning Status"),
+            ],
+        )
+
+    @classmethod
+    def execute(
+        cls, plan, prompt, overlap_frames, slice_reference_audio=True,
+    ):
+        finite = _prepare_long_reference_plan(
+            plan, prompt, overlap_frames, bool(slice_reference_audio),
+        )
+        purpose = {
+            "guide": "Fixed Guide",
+            "edit": "Editable Reference",
+            "boundary": "Boundary Only",
+            "none": "audio-driven",
+        }.get(finite["reference_mode"], finite["reference_mode"])
+        status = (
+            f"Split the {finite['source_duration_seconds']:.3f}s longest media span "
+            f"({finite['duration_source']}) into "
+            f"{finite['segment_count']} overlapping {purpose} segments using the "
+            f"Material Planner duration; each segment generates "
+            f"{finite['segment_frames']} frames, advances "
+            f"{finite['stride_frames']} frames, and reuses the identical prompt. "
+            f"Actual overlap is {finite['overlap_frames']} frames; the final "
+            f"{finite['trim_tail_frames']} excess tail frames will be removed."
+        )
+        if (finite.get("dance_continuation") or {}).get("enabled", False):
+            status += (
+                f" Requested/effective RGB context is "
+                f"{finite['requested_context_rgb_frames']}/"
+                f"{finite['effective_context_rgb_frames']} frames; internal H3 context "
+                f"is {finite['aligned_context_rgb_frames']} aligned frames / "
+                f"{finite['effective_context_latent_ticks']} latent ticks."
+            )
+        return io.NodeOutput(
+            finite, finite["segment_count"], finite["overlap_frames"], status
+        )
+
+
+class MiniMaxH3DanceFiniteLatentContinuation(io.ComfyNode):
     """Internal finite-graph helper that carries the previous AV latent tail."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteLatentContinuation",
-            display_name="MiniMax H3 Finite Latent Continuation (Internal)",
-            category="MiniMax H3/Internal",
+            node_id=DANCE_NODE_IDS["finite_latent_continuation"],
+            display_name="MiniMax H3 Dance Finite Latent Continuation (Internal)",
+            category=DANCE_CATEGORIES["internal"],
             is_dev_only=True,
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Latent.Input("target_latent"),
                 io.Int.Input("iteration", force_input=True),
-                io.Int.Input("overlap_frames", default=22, min=0, max=3592),
+                io.Int.Input("overlap_frames", default=22, min=0, max=362),
                 io.Boolean.Input("continue_audio_latent", default=True),
+                io.Boolean.Input("dance_continuation_enabled", default=False),
+                io.Int.Input("context_frames", default=24, min=0, max=362),
+                io.Boolean.Input("taper_enabled", default=False),
+                io.Int.Input("taper_frames", default=12, min=0, max=362),
+                io.Float.Input("start_strength", default=1.0, min=0.0, max=1.0),
+                io.Float.Input("end_strength", default=0.0, min=0.0, max=1.0),
+                io.Boolean.Input("context_noise_enabled", default=False),
+                io.Float.Input("context_noise_strength", default=0.0, min=0.0, max=1.0),
+                io.Int.Input("context_noise_taper_frames", default=4, min=0, max=362),
+                io.Int.Input("context_noise_seed", default=0, min=0, max=0xFFFFFFFFFFFFFFFF),
                 io.Model.Input("model"),
                 io.Sigmas.Input("sigmas"),
-                io.Latent.Input("previous_latent", optional=True),
-                io.Image.Input("previous_images", optional=True),
-                io.Vae.Input("vae", optional=True),
-                io.Vae.Input("audio_vae", optional=True),
+                io.Latent.Input("previous_clean_output", optional=True),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
@@ -421,163 +526,89 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
     @classmethod
     def execute(
         cls, positive, target_latent, iteration, overlap_frames,
-        continue_audio_latent, model, sigmas, previous_latent=None,
-        previous_images=None, vae=None, audio_vae=None,
+        continue_audio_latent, model, sigmas, previous_clean_output=None,
+        dance_continuation_enabled=False,
+        context_frames=24, taper_enabled=False, taper_frames=12,
+        start_strength=1.0, end_strength=0.0,
+        context_noise_enabled=False, context_noise_strength=0.0,
+        context_noise_taper_frames=4, context_noise_seed=0,
     ):
-        if int(overlap_frames) == 0:
-            # Touching windows are independent: no video or audio continuation.
-            return io.NodeOutput(positive, target_latent, 0, model)
-        if int(iteration) > 0 and int(overlap_frames) == 1:
-            if previous_images is None or vae is None or audio_vae is None:
-                raise ValueError("Touching segments require the preceding final image and VAEs")
-            positive = _apply_h3_guides(positive, target_latent, vae, audio_vae, [{
-                "image": previous_images[-1:].clone(), "audio": None, "frame_idx": 0,
-            }])
-            return io.NodeOutput(positive, target_latent, int(overlap_frames), model)
-        actual_overlap = _valid_guide_frames(int(overlap_frames))
+        requested_overlap = int(overlap_frames)
+        actual_overlap = (
+            max(0, requested_overlap)
+            if bool(dance_continuation_enabled)
+            else _valid_guide_frames(requested_overlap)
+        )
         if int(iteration) <= 0:
-            return io.NodeOutput(positive, target_latent, 0 if int(overlap_frames) == 0 else actual_overlap, model)
-        if previous_latent is None:
+            return io.NodeOutput(positive, target_latent, actual_overlap, model)
+        if actual_overlap == 0:
+            return io.NodeOutput(positive, target_latent, 0, model)
+        if previous_clean_output is None:
             raise ValueError("Segment 2 and later require the previous sampled latent")
-        masked_target, details = _apply_linear_temporal_noise_mask(
+        video_mask_values = None
+        if bool(dance_continuation_enabled):
+            rgb_strength = build_linear_context_strength(
+                context_frames=int(context_frames),
+                taper_frames=int(taper_frames) if bool(taper_enabled) else 0,
+                start_strength=float(start_strength),
+                end_strength=float(end_strength),
+            )
+            video_mask_values = context_strength_to_latent_mask(
+                rgb_strength,
+                rgb_frames_to_h3_latent_ticks(int(context_frames)),
+            )
+        continuity_working_copy, details = _apply_linear_temporal_noise_mask(
             target_latent=target_latent,
-            source_latent=previous_latent,
+            source_latent=previous_clean_output,
             guide_frames=actual_overlap,
             include_audio=bool(continue_audio_latent),
             gradient=False,
             audio_soft_release=bool(continue_audio_latent),
+            video_mask_values=video_mask_values,
+            context_noise_strength=(
+                float(context_noise_strength)
+                if bool(dance_continuation_enabled) and bool(context_noise_enabled)
+                else 0.0
+            ),
+            context_noise_taper_ticks=rgb_frames_to_h3_latent_ticks(
+                int(context_noise_taper_frames)
+            ),
+            context_noise_seed=int(context_noise_seed),
         )
+        if bool(dance_continuation_enabled):
+            print(
+                f"[DANCE] segment={int(iteration) + 1} "
+                f"continuity_rgb_frames={int(context_frames)} "
+                f"continuity_latent_ticks={details['video_tokens']} "
+                f"taper_rgb_frames={int(taper_frames) if bool(taper_enabled) else 0} "
+                f"context_noise_strength={details['context_noise_strength']:.2f}"
+            )
         patched_model = install_drift_control_av_model(
-            model, masked_target, sigmas, prefix_steps=details["video_tokens"]
+            model, continuity_working_copy, sigmas,
+            prefix_steps=details["video_tokens"],
         )
-        return io.NodeOutput(positive, masked_target, details["frames"], patched_model)
-
-
-class MiniMaxH3LockedAudioSlice(io.ComfyNode):
-    """Internal helper that reads the exact soundtrack interval for one GEN window."""
-
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="MiniMaxH3LockedAudioSlice",
-            display_name="MiniMax H3 Locked Audio Slice (Internal)",
-            category="MiniMax H3/Internal",
-            is_dev_only=True,
-            inputs=[TimelinePlan.Input("plan", display_name="Material Plan")],
-            outputs=[io.Audio.Output(display_name="Locked Audio")],
+        return io.NodeOutput(
+            positive, continuity_working_copy, details["frames"], patched_model
         )
 
-    @classmethod
-    def execute(cls, plan):
-        return io.NodeOutput(_locked_audio_interval(plan))
 
-
-class MiniMaxH3LockAudioLatent(io.ComfyNode):
-    """Replace the H3 target audio stream and exclude it from denoising."""
-
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="MiniMaxH3LockAudioLatent",
-            display_name="MiniMax H3 Lock Audio Latent (Internal)",
-            category="MiniMax H3/Internal",
-            is_dev_only=True,
-            inputs=[
-                io.Latent.Input("target_latent"),
-                io.Latent.Input("audio_latent"),
-            ],
-            outputs=[io.Latent.Output(display_name="Locked AV Latent")],
-        )
-
-    @classmethod
-    def execute(cls, target_latent, audio_latent):
-        target_samples = target_latent.get("samples") if isinstance(target_latent, dict) else None
-        source_audio = audio_latent.get("samples") if isinstance(audio_latent, dict) else None
-        if target_samples is None or not getattr(target_samples, "is_nested", False):
-            raise ValueError("Locked audio requires a nested MiniMax H3 AV latent")
-        streams = list(target_samples.unbind())
-        if len(streams) != 2 or source_audio is None or getattr(source_audio, "is_nested", False):
-            raise ValueError("Locked audio requires one encoded audio latent")
-        video, target_audio = streams
-        source_audio = source_audio.to(device=target_audio.device, dtype=target_audio.dtype)
-        if source_audio.ndim != target_audio.ndim or tuple(source_audio.shape[:-1]) != tuple(target_audio.shape[:-1]):
-            raise ValueError(
-                f"Encoded locked audio {tuple(source_audio.shape)} is incompatible with H3 target audio {tuple(target_audio.shape)}"
-            )
-        if source_audio.shape[-1] < target_audio.shape[-1]:
-            source_audio = torch.nn.functional.pad(
-                source_audio, (0, int(target_audio.shape[-1] - source_audio.shape[-1]))
-            )
-        locked_audio = source_audio[..., :target_audio.shape[-1]].clone()
-
-        existing_mask = target_latent.get("noise_mask")
-        if existing_mask is not None and getattr(existing_mask, "is_nested", False):
-            video_mask = existing_mask.unbind()[0]
-        elif torch.is_tensor(existing_mask):
-            video_mask = existing_mask
-        else:
-            video_mask = torch.ones(
-                (video.shape[0], 1, video.shape[2], 1, 1),
-                dtype=torch.float32, device=video.device,
-            )
-        audio_mask = torch.zeros(
-            (target_audio.shape[0], 1, 1, target_audio.shape[-1]),
-            dtype=torch.float32, device=target_audio.device,
-        )
-        output = dict(target_latent)
-        output["samples"] = NestedTensor((video, locked_audio))
-        output["noise_mask"] = NestedTensor((video_mask, audio_mask))
-        return io.NodeOutput(output)
-
-
-class MiniMaxH3LockedAudioMaster(io.ComfyNode):
-    """Decode the continuous original waveform once for the final video output."""
-
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="MiniMaxH3LockedAudioMaster",
-            display_name="MiniMax H3 Locked Audio Master (Internal)",
-            category="MiniMax H3/Internal",
-            is_dev_only=True,
-            inputs=[FiniteSegmentPlan.Input("finite_plan", display_name="Finite Segment Plan")],
-            outputs=[io.Audio.Output(display_name="Original Audio")],
-        )
-
-    @classmethod
-    def execute(cls, finite_plan):
-        finite = _require_finite_plan(finite_plan)
-        asset = _finite_locked_audio_asset(finite)
-        if asset is None:
-            raise ValueError("The finite plan has no locked original soundtrack")
-        first = _finite_plan_for_segment(finite, 1)
-        target_frames = int(finite.get("target_output_frames") or 0)
-        if target_frames < 1:
-            target_frames = sum(int(value) for value in finite.get("segment_lengths", []))
-            target_frames -= sum(int(value) for value in finite.get("segment_overlaps", [])[1:])
-        if target_frames < 1:
-            target_frames = int(first.get("length") or 0)
-        master_plan = copy.deepcopy(first)
-        master_plan["timeline"]["audios"] = [asset]
-        return io.NodeOutput(_locked_audio_interval(master_plan, output_frames=target_frames))
-
-
-class MiniMaxH3FiniteSegmentFinalize(io.ComfyNode):
+class MiniMaxH3DanceFiniteSegmentFinalize(io.ComfyNode):
     """Internal finite-graph helper that removes decoded overlap."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteSegmentFinalize",
-            display_name="MiniMax H3 Finite Segment Finalize (Internal)",
-            category="MiniMax H3/Internal",
+            node_id=DANCE_NODE_IDS["finite_segment_finalize"],
+            display_name="MiniMax H3 Dance Finite Segment Finalize (Internal)",
+            category=DANCE_CATEGORIES["internal"],
             is_dev_only=True,
             inputs=[
                 io.Latent.Input("sampled_latent"),
                 io.Image.Input("images"),
                 io.Int.Input("iteration", force_input=True),
-                io.Int.Input("overlap_frames", default=22, min=0, max=3592),
+                io.Int.Input("overlap_frames", default=22, min=0, max=362),
                 io.Boolean.Input("trim_audio_head", default=True),
+                io.Boolean.Input("exact_overlap_frames", default=False),
                 io.Audio.Input("audio", optional=True),
             ],
             outputs=[
@@ -590,9 +621,15 @@ class MiniMaxH3FiniteSegmentFinalize(io.ComfyNode):
     @classmethod
     def execute(
         cls, sampled_latent, images, iteration, overlap_frames,
-        trim_audio_head=True, audio=None,
+        trim_audio_head=True, audio=None, exact_overlap_frames=False,
     ):
-        trim_frames = 0 if int(iteration) <= 0 or int(overlap_frames) == 0 else _valid_guide_frames(int(overlap_frames))
+        trim_frames = 0
+        if int(iteration) > 0:
+            trim_frames = (
+                max(0, int(overlap_frames))
+                if bool(exact_overlap_frames)
+                else _valid_guide_frames(int(overlap_frames))
+            )
         if images.shape[0] <= trim_frames:
             raise ValueError(f"This segment has only {images.shape[0]} frames; cannot remove a {trim_frames}-frame overlap")
         trimmed_images = images[trim_frames:].clone() if trim_frames else images
@@ -612,30 +649,40 @@ class MiniMaxH3FiniteSegmentFinalize(io.ComfyNode):
         return io.NodeOutput(sampled_latent, trimmed_images, trimmed_audio)
 
 
-class MiniMaxH3FiniteAudioTrimTail(io.ComfyNode):
+class MiniMaxH3DanceFiniteAudioTrimTail(io.ComfyNode):
     """Internal helper that gives an incoming Soft AV segment seam ownership."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteAudioTrimTail",
-            display_name="MiniMax H3 Finite Audio Tail Trim (Internal)",
-            category="MiniMax H3/Internal",
+            node_id=DANCE_NODE_IDS["finite_audio_trim_tail"],
+            display_name="MiniMax H3 Dance Finite Audio Tail Trim (Internal)",
+            category=DANCE_CATEGORIES["internal"],
             is_dev_only=True,
             inputs=[
                 io.Audio.Input("audio"),
-                io.Int.Input("overlap_frames", default=39, min=1, max=3592),
+                io.Int.Input("overlap_frames", default=39, min=0, max=362),
+                io.Boolean.Input("exact_overlap_frames", default=False),
             ],
             outputs=[io.Audio.Output(display_name="Trimmed Audio")],
         )
 
     @classmethod
-    def execute(cls, audio, overlap_frames):
+    def execute(cls, audio, overlap_frames, exact_overlap_frames=False):
         waveform = audio.get("waveform") if isinstance(audio, dict) else None
         sample_rate = int(audio.get("sample_rate", 0)) if isinstance(audio, dict) else 0
         if waveform is None or sample_rate <= 0:
             raise ValueError("audio must contain waveform and a valid sample_rate")
-        trim_samples = round((_valid_guide_frames(int(overlap_frames)) / H3_FPS) * sample_rate)
+        trim_frames = (
+            max(0, int(overlap_frames))
+            if bool(exact_overlap_frames)
+            else _valid_guide_frames(int(overlap_frames))
+        )
+        trim_samples = round((trim_frames / H3_FPS) * sample_rate)
+        if trim_samples == 0:
+            output = dict(audio)
+            output["waveform"] = waveform.clone()
+            return io.NodeOutput(output)
         if waveform.shape[-1] <= trim_samples:
             raise ValueError("Accumulated audio is too short to replace its overlap tail")
         output = dict(audio)
@@ -643,15 +690,15 @@ class MiniMaxH3FiniteAudioTrimTail(io.ComfyNode):
         return io.NodeOutput(output)
 
 
-class MiniMaxH3FiniteOutputTrim(io.ComfyNode):
+class MiniMaxH3DanceFiniteOutputTrim(io.ComfyNode):
     """Trim auto-segment padding back to the longest source-media duration."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteOutputTrim",
-            display_name="MiniMax H3 Finite Output Trim (Internal)",
-            category="MiniMax H3/Internal",
+            node_id=DANCE_NODE_IDS["finite_output_trim"],
+            display_name="MiniMax H3 Dance Finite Output Trim (Internal)",
+            category=DANCE_CATEGORIES["internal"],
             is_dev_only=True,
             inputs=[
                 io.Image.Input("images"),
@@ -684,15 +731,15 @@ class MiniMaxH3FiniteOutputTrim(io.ComfyNode):
         return io.NodeOutput(trimmed_images, trimmed_audio)
 
 
-class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
+class MiniMaxH3DanceFiniteSegmentSampler(io.ComfyNode):
     """Expand a finite plan into a standard acyclic sampling graph."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteSegmentSampler",
-            display_name="MiniMax H3 Finite Segment Sampler",
-            category="MiniMax H3/Long Video",
+            node_id=DANCE_NODE_IDS["finite_segment_sampler"],
+            display_name="MiniMax H3 Dance Finite Segment Sampler",
+            category=DANCE_CATEGORIES["long_video"],
             description=(
                 "Expand a finite plan into a standard acyclic sampling graph. Sampler and scheduler remain "
                 "external; no Loop, Loop Variable, or Close Loop nodes are required."
@@ -725,14 +772,17 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
     ):
         finite = _require_finite_plan(finite_plan)
         graph = GraphBuilder()
-        previous_latent = None
-        previous_images = None
+        previous_clean_output = None
         merged_images = None
         merged_audio = None
         last_sampled = None
         overlap = int(finite["overlap_frames"])
-        locked_audio = _finite_locked_audio_asset(finite)
-        soft_audio = bool(continue_audio_latent) and locked_audio is None
+        output_overlap = int(finite.get("output_overlap_frames", overlap))
+        dance_enabled = bool(
+            (finite.get("dance_continuation") or {}).get("enabled", False)
+        )
+        dance_config = finite.get("dance_continuation") or {}
+        soft_audio = bool(continue_audio_latent)
         steps = drift_control_step_count(sigmas)
         if steps < 1:
             raise ValueError(
@@ -741,42 +791,40 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
 
         for index, prompt in enumerate(finite["prompts"]):
             number = index + 1
-            overlap = int(finite.get("segment_overlaps", [overlap] * finite["segment_count"])[index])
-            segment_plan = _finite_plan_for_segment(finite, number)
             encoder = graph.node(
-                "MiniMaxH3TimelineEncoder", id=f"encode_{number}",
+                DANCE_NODE_IDS["timeline_encoder"], id=f"encode_{number}",
                 clip=clip, vae=vae, audio_vae=audio_vae,
-                plan=segment_plan,
+                plan=_finite_plan_for_segment(finite, number),
                 prompt=prompt, ref_image_size=ref_image_size,
             )
             continuation_inputs = {
                 "positive": encoder.out(0), "target_latent": encoder.out(1),
                 "iteration": index, "overlap_frames": overlap,
-                "continue_audio_latent": bool(continue_audio_latent) and locked_audio is None,
+                "continue_audio_latent": bool(continue_audio_latent),
+                "dance_continuation_enabled": dance_enabled,
+                "context_frames": int(dance_config.get("context_frames", 24)),
+                "taper_enabled": bool(dance_config.get("taper_enabled", False)),
+                "taper_frames": int(dance_config.get("taper_frames", 12)),
+                "start_strength": float(dance_config.get("start_strength", 1.0)),
+                "end_strength": float(dance_config.get("end_strength", 0.0)),
+                "context_noise_enabled": bool(
+                    dance_config.get("context_noise_enabled", False)
+                ),
+                "context_noise_strength": float(
+                    dance_config.get("context_noise_strength", 0.0)
+                ),
+                "context_noise_taper_frames": int(
+                    dance_config.get("context_noise_taper_frames", 4)
+                ),
+                "context_noise_seed": (int(seed) + index) & 0xFFFFFFFFFFFFFFFF,
                 "model": model, "sigmas": sigmas,
             }
-            if previous_latent is not None and overlap > 0:
-                continuation_inputs["previous_latent"] = previous_latent
-                if overlap == 1:
-                    continuation_inputs.update(previous_images=previous_images, vae=vae, audio_vae=audio_vae)
+            if previous_clean_output is not None:
+                continuation_inputs["previous_clean_output"] = previous_clean_output
             continuation = graph.node(
-                "MiniMaxH3FiniteLatentContinuation", id=f"continue_{number}",
+                DANCE_NODE_IDS["finite_latent_continuation"], id=f"continue_{number}",
                 **continuation_inputs,
             )
-            sampling_latent = continuation.out(1)
-            if locked_audio is not None:
-                source_audio = graph.node(
-                    "MiniMaxH3LockedAudioSlice", id=f"locked_audio_slice_{number}",
-                    plan=segment_plan,
-                )
-                encoded_audio = graph.node(
-                    "VAEEncodeAudio", id=f"locked_audio_encode_{number}",
-                    audio=source_audio.out(0), vae=audio_vae,
-                )
-                sampling_latent = graph.node(
-                    "MiniMaxH3LockAudioLatent", id=f"locked_audio_latent_{number}",
-                    target_latent=sampling_latent, audio_latent=encoded_audio.out(0),
-                ).out(0)
             noise = graph.node("RandomNoise", id=f"noise_{number}", noise_seed=int(seed))
             guider = graph.node(
                 "BasicGuider", id=f"guider_{number}", model=continuation.out(3),
@@ -785,7 +833,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
             sampled = graph.node(
                 "SamplerCustomAdvanced", id=f"sample_{number}", noise=noise.out(0),
                 guider=guider.out(0), sampler=sampler, sigmas=sigmas,
-                latent_image=sampling_latent,
+                latent_image=continuation.out(1),
             )
             images = graph.node(
                 "VAEDecode", id=f"decode_video_{number}", samples=sampled.out(0), vae=vae,
@@ -794,10 +842,11 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 "VAEDecodeAudio", id=f"decode_audio_{number}", samples=sampled.out(0), vae=audio_vae,
             )
             finalized = graph.node(
-                "MiniMaxH3FiniteSegmentFinalize", id=f"finalize_{number}",
+                DANCE_NODE_IDS["finite_segment_finalize"], id=f"finalize_{number}",
                 sampled_latent=sampled.out(0), images=images.out(0), audio=audio.out(0),
-                iteration=index, overlap_frames=overlap,
+                iteration=index, overlap_frames=output_overlap,
                 trim_audio_head=not soft_audio,
+                exact_overlap_frames=dance_enabled,
             )
             current_images, current_audio = finalized.out(1), finalized.out(2)
             if merged_images is None:
@@ -808,58 +857,49 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                     image1=merged_images, image2=current_images,
                 )
                 previous_audio_for_join = merged_audio
-                if soft_audio and overlap > 0:
+                if soft_audio:
                     previous_audio_for_join = graph.node(
-                        "MiniMaxH3FiniteAudioTrimTail", id=f"trim_audio_tail_{number}",
-                        audio=merged_audio, overlap_frames=overlap,
+                        DANCE_NODE_IDS["finite_audio_trim_tail"], id=f"trim_audio_tail_{number}",
+                        audio=merged_audio, overlap_frames=output_overlap,
+                        exact_overlap_frames=dance_enabled,
                     ).out(0)
                 audio_join = graph.node(
                     "AudioConcat", id=f"join_audio_{number}",
                     audio1=previous_audio_for_join, audio2=current_audio, direction="after",
                 )
                 merged_images, merged_audio = image_join.out(0), audio_join.out(0)
-            previous_latent = sampled.out(0)
-            previous_images = images.out(0)
+            previous_clean_output = sampled.out(0)
             last_sampled = sampled.out(0)
 
         target_output_frames = int(finite.get("target_output_frames") or 0)
         if target_output_frames > 0:
             output_trim = graph.node(
-                "MiniMaxH3FiniteOutputTrim", id="trim_auto_segment_output",
+                DANCE_NODE_IDS["finite_output_trim"], id="trim_auto_segment_output",
                 images=merged_images, audio=merged_audio,
                 output_frames=target_output_frames,
             )
             merged_images, merged_audio = output_trim.out(0), output_trim.out(1)
 
-        if locked_audio is not None:
-            merged_audio = graph.node(
-                "MiniMaxH3LockedAudioMaster", id="locked_audio_master",
-                finite_plan=finite,
-            ).out(0)
-
         mode_status = (
-            "the source soundtrack is encoded into every segment with a zero audio denoise mask, and the final output uses the original continuous waveform"
-            if locked_audio is not None else
             f"Drift-Control AV {overlap}-frame mask adapted to {steps} sampling steps; overlap audio uses an 8-tick Soft AV half-cosine release"
             if continue_audio_latent
             else f"Drift-Control AV {overlap}-frame mask adapted to {steps} sampling steps; audio is independently generated"
         )
-        status = (
-            f"Expanded and sampled {finite['segment_count']} segments; actual overlap {overlap} frames; "
-            f"all segments use seed {int(seed)}; {mode_status}; "
-            f"audio latent {'is locked to the source' if locked_audio is not None else ('continues' if continue_audio_latent else 'does not continue')}."
-        )
-        if finite.get("mode") == "timeline_segments":
-            status = (
-                f"Sampled {finite['segment_count']} timeline windows; lengths={finite['segment_lengths']}; "
-                f"seam overlaps={finite['segment_overlaps']}. Zero-overlap seams are generated "
-                "independently without previous-segment guidance or frame removal."
+        if dance_enabled:
+            context_status = (
+                f"requested/effective RGB context "
+                f"{finite['requested_context_rgb_frames']}/"
+                f"{finite['effective_context_rgb_frames']} frames; internal H3 context "
+                f"{finite['aligned_context_rgb_frames']} aligned frames / "
+                f"{finite['effective_context_latent_ticks']} latent ticks"
             )
-            if locked_audio is not None:
-                status += (
-                    " The source soundtrack is encoded into every segment with a zero audio "
-                    "denoise mask; final audio is the original continuous waveform."
-                )
+        else:
+            context_status = f"actual overlap {overlap} frames"
+        status = (
+            f"Expanded and sampled {finite['segment_count']} segments; {context_status}; "
+            f"all segments use seed {int(seed)}; {mode_status}; "
+            f"audio latent {'continues' if continue_audio_latent else 'does not continue'}."
+        )
         if target_output_frames > 0:
             trim_tail_frames = int(finite.get("trim_tail_frames") or 0)
             status += (

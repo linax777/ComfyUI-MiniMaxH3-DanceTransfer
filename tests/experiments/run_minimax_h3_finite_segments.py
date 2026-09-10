@@ -56,9 +56,9 @@ def payload(image_file: str, steps: int) -> dict:
         "5": {"class_type": "LoraLoaderModelOnly", "inputs": {"model": ["1", 0], "lora_name": "minimax_h3_fl2v_lightx2v_turbo_4step_v1.0_768p_resized_avg_rank_31_bf16.safetensors", "strength_model": 1.0}},
         "6": {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "euler"}},
         "7": {"class_type": "BasicScheduler", "inputs": {"model": ["5", 0], "scheduler": "simple", "steps": steps, "denoise": 1.0}},
-        "8": {"class_type": "MiniMaxH3TimelinePlanner", "inputs": {"width": 512, "height": 288, "generation_seconds": 2.34, "timeline_data": json.dumps(timeline, ensure_ascii=False)}},
-        "9": {"class_type": "MiniMaxH3FiniteSegmentExpansion", "inputs": {"plan": ["8", 0], "segment_prompts": json.dumps(PROMPTS, ensure_ascii=False), "segment_count": 2, "overlap_frames": 22, "inject_continuity_instruction": True}},
-        "12": {"class_type": "MiniMaxH3FiniteSegmentSampler", "inputs": {"model": ["5", 0], "clip": ["2", 0], "vae": ["3", 0], "audio_vae": ["4", 0], "finite_plan": ["9", 0], "sampler": ["6", 0], "sigmas": ["7", 0], "seed": 2608310001, "continue_audio_latent": True, "ref_image_size": "match"}},
+        "8": {"class_type": "MiniMaxH3DanceTimelinePlanner", "inputs": {"width": 512, "height": 288, "generation_seconds": 2.34, "timeline_data": json.dumps(timeline, ensure_ascii=False)}},
+        "9": {"class_type": "MiniMaxH3DanceFiniteSegmentExpansion", "inputs": {"plan": ["8", 0], "segment_prompts": json.dumps(PROMPTS, ensure_ascii=False), "segment_count": 2, "overlap_frames": 22, "inject_continuity_instruction": True}},
+        "12": {"class_type": "MiniMaxH3DanceFiniteSegmentSampler", "inputs": {"model": ["5", 0], "clip": ["2", 0], "vae": ["3", 0], "audio_vae": ["4", 0], "finite_plan": ["9", 0], "sampler": ["6", 0], "sigmas": ["7", 0], "seed": 2608310001, "continue_audio_latent": True, "ref_image_size": "match"}},
         "10": {"class_type": "CreateVideo", "inputs": {"images": ["12", 1], "audio": ["12", 2], "fps": 24.0, "bit_depth": 8, "color_space": "sRGB"}},
         "11": {"class_type": "SaveVideo", "inputs": {"video": ["10", 0], "filename_prefix": "video/H3_finite_segments/two_segment_smoke", "format": "mp4", "codec": "h264"}},
     }

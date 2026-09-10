@@ -42,16 +42,19 @@ def main() -> None:
         raise SystemExit("usage: smoke_media_pipeline.py VIDEO IMAGE AUDIO")
     plugin_dir = Path(__file__).resolve().parents[1]
     backend = load_plugin(plugin_dir)
-    backend.MiniMaxH3TimelinePlanner.define_schema()
-    backend.MiniMaxH3OmniPromptBridge.define_schema()
-    backend.MiniMaxH3TimelineEncoder.define_schema()
-    backend.MiniMaxH3TimelineDirector.define_schema()
+    package = sys.modules[backend.__package__]
+    namespace = sys.modules[f"{backend.__package__}.dance_namespace"]
+    assert set(package.NODE_CLASS_MAPPINGS).isdisjoint(namespace.UPSTREAM_OWNED_NODE_IDS)
+    backend.MiniMaxH3DanceTimelinePlanner.define_schema()
+    backend.MiniMaxH3DanceOmniPromptBridge.define_schema()
+    backend.MiniMaxH3DanceTimelineEncoder.define_schema()
+    backend.MiniMaxH3DanceTimelineDirector.define_schema()
     registered_routes = {
         (route.method, route.path)
         for route in getattr(PromptServer.instance.routes, "_items", [])
     }
-    assert ("POST", "/minimax_h3_timeline/media_info") in registered_routes
-    assert ("POST", "/minimax_h3_timeline/preview_proxy") in registered_routes
+    assert ("POST", "/minimax_h3_dance_timeline/media_info") in registered_routes
+    assert ("POST", "/minimax_h3_dance_timeline/preview_proxy") in registered_routes
     assert not any(path == "/minimax_h3_timeline/upload_chunk" for _, path in registered_routes)
     assert not any(
         method == "GET" and path.startswith("/minimax_h3_timeline/")
@@ -139,7 +142,7 @@ def main() -> None:
     assert [item["label"] for item in bundle["items"]] == [
         "<Picture 1>", "<Video 1>", "<Audio 1>", "<Audio 2>",
     ]
-    bypassed = backend.MiniMaxH3OmniPromptBridge.execute(
+    bypassed = backend.MiniMaxH3DanceOmniPromptBridge.execute(
         media_bundle=bundle,
         task="REF2AV",
         prompt="short prompt",

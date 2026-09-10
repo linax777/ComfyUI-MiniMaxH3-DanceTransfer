@@ -8,12 +8,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_NODES = {
-    "MiniMaxH3TimelineDirector", "MiniMaxH3TimelinePlanner",
-    "MiniMaxH3TimelineEncoder", "MiniMaxH3OmniPromptBridge",
-    "MiniMaxH3AddLatentGuide", "MiniMaxH3VisualDifferenceMetrics",
-    "MiniMaxH3FiniteSegmentExpansion", "MiniMaxH3FiniteSegmentSampler",
-    "MiniMaxH3FiniteLatentContinuation", "MiniMaxH3FiniteSegmentFinalize",
-    "MiniMaxH3FiniteAudioTrimTail", "MiniMaxH3FiniteOutputTrim",
+    "MiniMaxH3DanceTimelineDirector", "MiniMaxH3DanceTimelinePlanner",
+    "MiniMaxH3DanceTimelineEncoder", "MiniMaxH3DanceOmniPromptBridge",
+    "MiniMaxH3DanceAddLatentGuide", "MiniMaxH3DanceVisualDifferenceMetrics",
+    "MiniMaxH3DanceFiniteSegmentExpansion", "MiniMaxH3DanceFiniteSegmentSampler",
+    "MiniMaxH3DanceLongReferenceSegmentPlan",
+    "MiniMaxH3DanceFiniteLatentContinuation", "MiniMaxH3DanceFiniteSegmentFinalize",
+    "MiniMaxH3DanceFiniteAudioTrimTail", "MiniMaxH3DanceFiniteOutputTrim",
 }
 
 
@@ -24,8 +25,8 @@ def load(language: str, filename: str) -> dict:
 def main() -> None:
     en_main, zh_main = load("en", "main.json"), load("zh", "main.json")
     en_nodes, zh_nodes = load("en", "nodeDefs.json"), load("zh", "nodeDefs.json")
-    en_timeline = en_main["MiniMaxH3TimelineDirector"]["timeline"]
-    zh_timeline = zh_main["MiniMaxH3TimelineDirector"]["timeline"]
+    en_timeline = en_main["MiniMaxH3DanceTimelineDirector"]["timeline"]
+    zh_timeline = zh_main["MiniMaxH3DanceTimelineDirector"]["timeline"]
     assert set(en_timeline) == set(zh_timeline)
     assert set(en_nodes) == EXPECTED_NODES == set(zh_nodes)
 

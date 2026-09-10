@@ -15,6 +15,9 @@ from comfy.ldm.minimax.model import FRAME_PER_TOKEN
 from comfy.nested_tensor import NestedTensor
 from comfy_api.latest import io
 
+from .dance_continuation import apply_deterministic_context_noise
+from .dance_namespace import DANCE_CATEGORIES, DANCE_NODE_IDS
+
 
 def _h3_streams(latent, label):
     samples = latent.get("samples") if isinstance(latent, dict) else None
@@ -102,6 +105,10 @@ def _apply_linear_temporal_noise_mask(
     include_audio=False,
     gradient=True,
     audio_soft_release=False,
+    video_mask_values=None,
+    context_noise_strength=0.0,
+    context_noise_taper_ticks=0,
+    context_noise_seed=0,
 ):
     """Copy the previous tail and configure denoising inside the Guide interval.
 
@@ -134,6 +141,14 @@ def _apply_linear_temporal_noise_mask(
     video_tail = source_video[:1, :, -video_tokens:, :, :].to(
         device=video.device, dtype=video.dtype
     )
+    if float(context_noise_strength) > 0.0:
+        video_tail = apply_deterministic_context_noise(
+            video_tail,
+            strength=float(context_noise_strength),
+            taper_steps=min(int(context_noise_taper_ticks), video_tokens),
+            seed=int(context_noise_seed),
+            time_dim=2,
+        )
     video[:, :, :video_tokens, :, :] = video_tail.expand(
         video.shape[0], -1, -1, -1, -1
     )
@@ -142,17 +157,27 @@ def _apply_linear_temporal_noise_mask(
         dtype=torch.float32,
         device=target_video.device,
     )
-    video_ramp = (
-        torch.linspace(
-            0.0,
-            1.0,
-            steps=video_tokens,
-            dtype=video_mask.dtype,
-            device=video_mask.device,
+    if video_mask_values is not None:
+        if int(video_mask_values.numel()) != video_tokens:
+            raise ValueError(
+                f"video_mask_values has {video_mask_values.numel()} ticks; "
+                f"the continuation requires {video_tokens}"
+            )
+        video_ramp = video_mask_values.reshape(-1).to(
+            device=video_mask.device, dtype=video_mask.dtype
+        ).clamp(0.0, 1.0)
+    else:
+        video_ramp = (
+            torch.linspace(
+                0.0,
+                1.0,
+                steps=video_tokens,
+                dtype=video_mask.dtype,
+                device=video_mask.device,
+            )
+            if gradient
+            else torch.zeros(video_tokens, dtype=video_mask.dtype, device=video_mask.device)
         )
-        if gradient
-        else torch.zeros(video_tokens, dtype=video_mask.dtype, device=video_mask.device)
-    )
     video_mask[:, :, :video_tokens, :, :] = video_ramp.reshape(1, 1, -1, 1, 1)
 
     audio = target_audio.clone()
@@ -212,18 +237,20 @@ def _apply_linear_temporal_noise_mask(
         "video_mask_end": float(video_ramp[-1].item()),
         "gradient": bool(gradient),
         "audio_soft_release": bool(audio_soft_release and include_audio),
+        "context_noise_strength": float(context_noise_strength),
+        "context_noise_seed": int(context_noise_seed),
     }
 
 
-class MiniMaxH3AddLatentGuide(io.ComfyNode):
+class MiniMaxH3DanceAddLatentGuide(io.ComfyNode):
     """Anchor a sampled H3 latent tail without an RGB decode/encode round trip."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3AddLatentGuide",
-            display_name="MiniMax H3 Direct Latent Guide (Experimental)",
-            category="MiniMax H3/Experimental",
+            node_id=DANCE_NODE_IDS["add_latent_guide"],
+            display_name="MiniMax H3 Dance Direct Latent Guide (Experimental)",
+            category=DANCE_CATEGORIES["experimental"],
             description=(
                 "Copy a valid temporal block from the tail of a sampled MiniMax H3 AV latent "
                 "directly into another target latent for RGB/VAE round-trip A/B testing."
@@ -276,15 +303,15 @@ class MiniMaxH3AddLatentGuide(io.ComfyNode):
         return io.NodeOutput(conditioned, report)
 
 
-class MiniMaxH3VisualDifferenceMetrics(io.ComfyNode):
+class MiniMaxH3DanceVisualDifferenceMetrics(io.ComfyNode):
     """Report lightweight objective differences between two decoded videos."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3VisualDifferenceMetrics",
-            display_name="MiniMax H3 Video Difference Metrics (Experimental)",
-            category="MiniMax H3/Experimental",
+            node_id=DANCE_NODE_IDS["visual_difference_metrics"],
+            display_name="MiniMax H3 Dance Video Difference Metrics (Experimental)",
+            category=DANCE_CATEGORIES["experimental"],
             description="Compare two RGB frame batches and report MAE, MSE, PSNR, means, saturation, and amplified differences.",
             inputs=[
                 io.Image.Input("reference"),

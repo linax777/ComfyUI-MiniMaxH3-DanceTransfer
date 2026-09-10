@@ -19,8 +19,8 @@ Lightx2v Turbo LoRA。模型文件名可以按本机情况修改。
 
 实验节点：
 
-- `MiniMaxH3AddLatentGuide`：直接截取已采样 H3 视频 latent 的合法尾部时间块。
-- `MiniMaxH3VisualDifferenceMetrics`：计算 MAE、MSE、PSNR、RGB 均值、平均饱和度和
+- `MiniMaxH3DanceAddLatentGuide`：直接截取已采样 H3 视频 latent 的合法尾部时间块。
+- `MiniMaxH3DanceVisualDifferenceMetrics`：计算 MAE、MSE、PSNR、RGB 均值、平均饱和度和
   极值像素比例，并输出放大的绝对差异帧。
 
 ## 本次实测（2026-08-27）
